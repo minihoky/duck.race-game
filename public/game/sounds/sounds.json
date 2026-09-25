@@ -1,0 +1,58 @@
+{
+  "sounds":[
+    {"fileName":"1",
+      "niceName":"Original Bell"
+    },
+    {"fileName":"mute",
+      "niceName":"Mute All"
+    },
+    {"fileName":"2",
+      "niceName":"Air Raid Siren"
+    },
+    {"fileName":"3",
+      "niceName":"Applause"
+    },
+    {"fileName":"4",
+      "niceName":"Festive Bells"
+    },
+    {"fileName":"5",
+      "niceName":"Rocket Launch"
+    },
+    {"fileName":"6",
+      "niceName":"Explosion"
+    },
+    {"fileName":"7",
+      "niceName":"Cop Car"
+    },
+    {"fileName":"8",
+      "niceName":"High Pitch"
+    },
+    {"fileName":"9",
+      "niceName":"Laughing"
+    },
+    {"fileName":"10",
+      "niceName":"Ting Ting Bell"
+    },
+    {"fileName":"11",
+      "niceName":"Submarine"
+    },
+    {"fileName":"12",
+      "niceName":"Sonar"
+    },
+    {"fileName":"13",
+      "niceName":"Race Bugle"
+    },
+    {"fileName":"14",
+      "niceName":"Key Chimes"
+    },
+    {"fileName":"15",
+      "niceName":"Digital Alarm"
+    },
+    {"fileName":"16",
+      "niceName":"Siren"
+    },
+    {"fileName":"17",
+      "niceName":"Sensory"
+    }
+  ]
+}

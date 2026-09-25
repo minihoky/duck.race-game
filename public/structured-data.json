@@ -1,0 +1,25 @@
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Online Duck Race Name Picker - Free Duck Racing Game",
+  "description": "Duck Race is a fun and free online game where 2 to 100 ducks can participate in a race. Players can set custom race times and watch the ducks dash to the finish line. The results are completely random, creating an exciting and unpredictable experience. This game is suitable for interactive activities in classrooms or at parties, helping to create a lively and entertaining atmosphere. With the Premium version, you can have up to 1000 ducks join the race.",
+  "url": "https://duckrace-game.com",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Any",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "screenshot": "https://duckrace-game.com/og_image.png",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "ratingCount": "12509"
+  },
+  "author": {
+    "@type": "Organization",
+    "name": "Duck Race Team",
+    "url": "https://duckrace-game.com"
+  }
+}
