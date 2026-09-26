@@ -279,11 +279,15 @@
     });
   }
 
+  const skinned = new Set();
+  const marked = new Set();
+
   function markHidden(kid) {
     if (!kid || kid.name === "raceFish" || kid._fishMarked) return;
     kid._fishMarked = true;
     kid._fishWasVisible = kid.visible !== false;
     kid.visible = false;
+    marked.add(kid);
   }
 
   function applyFish(node) {
@@ -295,6 +299,7 @@
       node.children.forEach(applyFish);
       return;
     }
+    skinned.add(node);
     hatSibling(node).forEach(markHidden);
     const digit = findDigit(node);
     if (digit) markHidden(digit);
@@ -322,7 +327,18 @@
     while (current) {
       if (current.cacheCanvas) {
         const bounds = current.bitmapCache;
-        if (current.name === "inner" && bounds && current.uncache) current.uncache();
+        if (current.name === "inner" && bounds && current.uncache) {
+          if (!current._fishCache) {
+            current._fishCache = {
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              scale: bounds.scale || 1,
+            };
+          }
+          current.uncache();
+        }
         else if (current.updateCache) {
           try { current.updateCache(); } catch (error) { /* keep the live fish if a cache cannot refresh */ }
         }
@@ -332,21 +348,51 @@
   }
 
   function restore(node) {
-    if (!node || !node.children) return;
-    const leftovers = [];
-    node.children.forEach(function (kid) {
-      if (!kid) return;
-      if (kid.name === "raceFish") leftovers.push(kid);
-      if (kid._fishMarked) {
-        kid.visible = kid._fishWasVisible;
-        kid._fishMarked = false;
+    const touched = [];
+    function strip(current) {
+      if (!current || !current.children) return;
+      const leftovers = [];
+      current.children.forEach(function (kid) {
+        if (!kid) return;
+        if (kid.name === "raceFish") leftovers.push(kid);
+        strip(kid);
+      });
+      leftovers.forEach(function (kid) {
+        current.removeChild(kid);
+        touched.push(current);
+      });
+    }
+    marked.forEach(function (kid) {
+      if (!kid || !kid._fishMarked) return;
+      kid.visible = kid._fishWasVisible !== false;
+      kid._fishMarked = false;
+    });
+    marked.clear();
+    skinned.forEach(function (body) {
+      strip(body);
+      const holder = body.parent;
+      if (holder) strip(holder);
+    });
+    skinned.clear();
+    if (node) strip(node);
+    const seen = new Set();
+    touched.forEach(function (body) {
+      let current = body;
+      while (current && !seen.has(current)) {
+        seen.add(current);
+        const saved = current._fishCache;
+        if (saved && current.cache) {
+          try {
+            current.cache(saved.x, saved.y, saved.width, saved.height, saved.scale);
+            current._fishCache = null;
+          } catch (error) { /* draw the duck live if its cache cannot be rebuilt */ }
+        } else if (current.cacheCanvas && current.updateCache) {
+          try { current.updateCache(); } catch (error) { /* leave the previous frame if this cache cannot redraw */ }
+        }
+        current = current.parent;
       }
-      restore(kid);
     });
-    leftovers.forEach(function (kid) {
-      node.removeChild(kid);
-    });
-    if (leftovers.length) refreshCache(node);
+    return touched.length > 0;
   }
 
   let settingsClip = null;
@@ -410,6 +456,7 @@
     const original = stage.update.bind(stage);
     stage.update = function () {
       if (species === "fish" && canSkin()) applyFish(window.exportRoot);
+      else if (species === "duck" && window.exportRoot) restore(window.exportRoot);
       placeToggle();
       return original();
     };
