@@ -90,27 +90,175 @@
   }
 
   let opaque = null;
+  let active = "costume";
+  const packs = {};
   const plates = new Map();
 
   function fishOpaque() {
-    if (opaque) return opaque;
-    const ctx = art.getContext("2d");
-    const data = ctx.getImageData(0, 0, art.width, art.height).data;
-    let minX = art.width;
-    let minY = art.height;
+    return opaque;
+  }
+
+  function measureOpaque(canvas) {
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let minX = canvas.width;
+    let minY = canvas.height;
     let maxX = 0;
     let maxY = 0;
-    for (let y = 0; y < art.height; y += 2) {
-      for (let x = 0; x < art.width; x += 2) {
-        if (data[(y * art.width + x) * 4 + 3] < 20) continue;
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        if (data[(y * canvas.width + x) * 4 + 3] < 20) continue;
         if (x < minX) minX = x;
         if (y < minY) minY = y;
         if (x > maxX) maxX = x;
         if (y > maxY) maxY = y;
       }
     }
-    opaque = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
-    return opaque;
+    return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+  }
+
+  function inEllipse(rx, ry, cx, cy, ex, ey) {
+    const nx = (rx - cx) / ex;
+    const ny = (ry - cy) / ey;
+    return nx * nx + ny * ny <= 1;
+  }
+
+  function fishRole(box, x, y) {
+    const rx = (x - box.x) / box.w;
+    const ry = (y - box.y) / box.h;
+    if (rx > 0.93 && ry > 0.34 && ry < 0.58) return "mouth";
+    if (rx < 0.255) return "fin";
+    if (ry < 0.20 && rx > 0.38 && rx < 0.62) return "fin";
+    if (ry > 0.855 && rx > 0.42 && rx < 0.72) return "fin";
+    if (inEllipse(rx, ry, 0.55, 0.70, 0.07, 0.07)) return "fin";
+    return "body";
+  }
+
+  function paintBelly(copy, width, height, box) {
+    const cx = box.x + box.w * 0.50;
+    const cy = box.y + box.h * 0.52;
+    const rx = box.w * 0.13;
+    const ry = box.h * 0.10;
+    for (let y = Math.floor(cy - ry); y <= cy + ry; y += 1) {
+      for (let x = Math.floor(cx - rx); x <= cx + rx; x += 1) {
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const nx = (x - cx) / rx;
+        const ny = (y - cy) / ry;
+        if (nx * nx + ny * ny > 1) continue;
+        const offset = (y * width + x) * 4;
+        if (copy[offset + 3] < 20) continue;
+        if (Math.max(copy[offset], copy[offset + 1], copy[offset + 2]) < 70) continue;
+        copy[offset] = 255;
+        copy[offset + 1] = 255;
+        copy[offset + 2] = 255;
+      }
+    }
+  }
+
+  function paintHat(ctx, box) {
+    const cx = box.x + box.w * 0.73;
+    const cy = box.y + box.h * 0.22;
+    const radius = box.w * 0.09;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = "#161616";
+    ctx.fillStyle = "#f08a14";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius * 1.45, radius * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function recolor(source, kind) {
+    const width = source.width;
+    const height = source.height;
+    const original = source.getContext("2d").getImageData(0, 0, width, height);
+    const copy = new Uint8ClampedArray(original.data);
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (copy[(y * width + x) * 4 + 3] < 20) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    const box = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (copy[offset + 3] < 20) continue;
+        const red = copy[offset];
+        const green = copy[offset + 1];
+        const blue = copy[offset + 2];
+        if (Math.max(red, green, blue) < 70) continue;
+        if (red > 230 && green > 230 && blue > 230) continue;
+        const detail = green < 120;
+        const part = fishRole(box, x, y);
+        const rx = (x - box.x) / box.w;
+        const ry = (y - box.y) / box.h;
+        let color = "#ffe14a";
+        if (kind === "yellow") color = part === "body" ? "#ffe14a" : (detail ? "#d86e08" : "#f08a14");
+        else if (kind === "costume") color = part === "mouth" ? "#f08a14" : (detail ? "#c41616" : "#ef3b3b");
+        else if (part === "mouth") color = "#f08a14";
+        else if (part === "fin" && rx < 0.255) color = detail ? "#c41616" : "#ef3b3b";
+        else if (ry > 0.60) color = "#ef3b3b";
+        else if (rx > 0.66) color = "#2f6fed";
+        else color = "#ffe14a";
+        const value = parseInt(color.slice(1), 16);
+        copy[offset] = (value >> 16) & 255;
+        copy[offset + 1] = (value >> 8) & 255;
+        copy[offset + 2] = value & 255;
+      }
+    }
+    if (kind !== "costume") paintBelly(copy, width, height, box);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.putImageData(new ImageData(copy, width, height), 0, 0);
+    if (kind === "costume") paintHat(ctx, box);
+    return canvas;
+  }
+
+  function buildPacks(source) {
+    const plate = badge;
+    ["costume", "yellow", "colors"].forEach(function (kind) {
+      const canvas = recolor(source, kind);
+      packs[kind] = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
+    });
+  }
+
+  function useStyle(name) {
+    const pack = packs[name] || packs.costume;
+    if (!pack) return;
+    active = name;
+    art = pack.canvas;
+    badge = pack.badge;
+    opaque = pack.opaque;
+  }
+
+  function currentStyle() {
+    let frame = 0;
+    let found = false;
+    function walk(node, depth) {
+      if (!node || depth > 12 || found) return;
+      if (node.name === "choiceToggle") {
+        frame = node.currentFrame || 0;
+        found = true;
+      }
+      (node.children || []).forEach(function (kid) { walk(kid, depth + 1); });
+    }
+    if (window.exportRoot) walk(window.exportRoot, 0);
+    return ["costume", "yellow", "colors"][frame] || "costume";
   }
 
   function drawnBox(node) {
@@ -239,7 +387,7 @@
       host = host.parent;
     }
     const span = fishOpaque();
-    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.78 : inRace ? 1.12 : 1.42) : 150;
+    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) : 150;
     const scale = targetW / span.w;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
@@ -247,7 +395,7 @@
       let card = body;
       while (card && card.name !== "choiceToggle") card = card.parent;
       const box = card && card.nominalBounds;
-      const globalCenter = box ? card.localToGlobal(box.x + box.width * 0.431, box.y + box.height * 0.4) : null;
+      const globalCenter = box ? card.localToGlobal(box.x + box.width * 0.431, box.y + box.height * 0.30) : null;
       const center = globalCenter ? body.globalToLocal(globalCenter.x, globalCenter.y) : anchor;
       bitmap.regX = span.x + span.w / 2;
       bitmap.regY = span.y + span.h / 2;
@@ -304,7 +452,7 @@
     const digit = findDigit(node);
     if (digit) markHidden(digit);
     const label = readNumber(node);
-    const number = digit ? "d" + digit.id : "n" + (label || "1");
+    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1"));
     let fish = node.children.find(function (kid) {
       return kid && kid.name === "raceFish";
     });
@@ -455,7 +603,10 @@
     hooked = true;
     const original = stage.update.bind(stage);
     stage.update = function () {
-      if (species === "fish" && canSkin()) applyFish(window.exportRoot);
+      if (species === "fish" && canSkin()) {
+        useStyle(currentStyle());
+        applyFish(window.exportRoot);
+      }
       else if (species === "duck" && window.exportRoot) restore(window.exportRoot);
       placeToggle();
       return original();
@@ -572,7 +723,8 @@
   function boot() {
     const img = new Image();
     img.onload = function () {
-      art = knockout(img);
+      buildPacks(knockout(img));
+      useStyle("yellow");
       mountToggle();
       const fishIcon = document.querySelector('#species-switch button[data-species="fish"] canvas');
       if (fishIcon) {
