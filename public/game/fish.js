@@ -1,7 +1,7 @@
 (function () {
   const SPECIES_KEY = "duck-race-species";
   const savedSpecies = localStorage.getItem(SPECIES_KEY);
-  let species = savedSpecies === "fish" || savedSpecies === "turtle" ? savedSpecies : "duck";
+  let species = savedSpecies === "fish" || savedSpecies === "frog" || savedSpecies === "turtle" ? savedSpecies : "duck";
   let art = null;
   let badge = null;
   let hooked = false;
@@ -238,13 +238,13 @@
     });
   }
 
-  function prepareTurtle(canvas) {
+  function prepareAnimal(canvas, name, spot) {
     const box = measureOpaque(canvas);
     const plate = {
-      x: Math.round(box.x + box.w * 0.16),
-      y: Math.round(box.y + box.h * 0.46),
-      w: Math.round(box.w * 0.14),
-      h: Math.round(box.h * 0.22),
+      x: Math.round(box.x + box.w * spot.x),
+      y: Math.round(box.y + box.h * spot.y),
+      w: Math.round(box.w * spot.w),
+      h: Math.round(box.h * spot.h),
     };
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
@@ -255,7 +255,7 @@
     ctx.roundRect(plate.x, plate.y, plate.w, plate.h, Math.min(plate.w, plate.h) * 0.28);
     ctx.fill();
     ctx.stroke();
-    packs.turtle = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
+    packs[name] = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
   }
 
   function useStyle(name) {
@@ -408,7 +408,8 @@
       host = host.parent;
     }
     const span = fishOpaque();
-    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) : 150;
+    const fit = active === "frog" ? 0.78 : 1;
+    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
     const scale = targetW / span.w;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
@@ -625,7 +626,7 @@
     const original = stage.update.bind(stage);
     stage.update = function () {
       if (species !== "duck" && canSkin()) {
-        const style = species === "turtle" ? "turtle" : currentStyle();
+        const style = species === "fish" ? currentStyle() : species;
         if (packs[style]) {
           useStyle(style);
           applyFish(window.exportRoot);
@@ -689,6 +690,9 @@
     } else if (kind === "fish" && packs.yellow) {
       const bounds = fishBounds(packs.yellow.canvas);
       ctx.drawImage(packs.yellow.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 4, 14, 56, 36);
+    } else if (kind === "frog" && packs.frog) {
+      const bounds = fishBounds(packs.frog.canvas);
+      ctx.drawImage(packs.frog.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 6, 8, 52, 48);
     } else if (kind === "turtle" && packs.turtle) {
       const bounds = fishBounds(packs.turtle.canvas);
       ctx.drawImage(packs.turtle.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 2, 16, 60, 34);
@@ -721,23 +725,24 @@
     const style = document.createElement("style");
     style.textContent = [
       "#species-switch{position:absolute;left:8px;bottom:8px;z-index:40;display:flex;align-items:center;gap:0;padding:4px;background:#2b2b2b;border-radius:999px;box-shadow:0 1px 0 rgba(255,255,255,.14) inset, 0 2px 5px rgba(0,0,0,.45);pointer-events:auto}",
-      "#species-switch button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 18px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;white-space:nowrap}",
+      "#species-switch button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 16px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;white-space:nowrap}",
       "#species-switch button.is-on{background:#3dce2b}",
       "#species-switch canvas{width:36px !important;height:36px !important;display:block !important;flex:0 0 36px !important;position:static !important;background:transparent !important}",
     ].join("");
     document.head.appendChild(style);
     const bar = document.createElement("div");
     bar.id = "species-switch";
-    ["duck", "fish", "turtle"].forEach(function (kind) {
+    const labels = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle" };
+    ["duck", "fish", "frog", "turtle"].forEach(function (kind) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.species = kind;
       button.appendChild(paintToggleIcon(kind));
-      button.appendChild(document.createTextNode(kind === "duck" ? "Duck" : kind === "fish" ? "Fish" : "Turtle"));
+      button.appendChild(document.createTextNode(labels[kind]));
       button.addEventListener("click", function () {
         choose(kind);
       });
-      button.style.cssText = "display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 18px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;white-space:nowrap;";
+      button.style.cssText = "display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 16px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;white-space:nowrap;";
       const icon = button.querySelector("canvas");
       if (icon) icon.style.cssText = "width:36px;height:36px;display:block;flex:0 0 36px;position:static;background:transparent;";
       bar.appendChild(button);
@@ -747,7 +752,7 @@
   }
 
   function refreshIcons() {
-    ["fish", "turtle"].forEach(function (kind) {
+    ["fish", "frog", "turtle"].forEach(function (kind) {
       const icon = document.querySelector('#species-switch button[data-species="' + kind + '"] canvas');
       if (!icon) return;
       const next = paintToggleIcon(kind);
@@ -758,14 +763,16 @@
 
   function boot() {
     let fishReady = null;
+    let frogReady = null;
     let turtleReady = null;
     let fishBadge = null;
     function tryBoot() {
-      if (!fishReady || !turtleReady || !fishBadge) return;
+      if (!fishReady || !frogReady || !turtleReady || !fishBadge) return;
       badge = fishBadge;
       buildPacks(fishReady);
-      prepareTurtle(turtleReady);
-      useStyle(species === "turtle" ? "turtle" : "yellow");
+      prepareAnimal(frogReady, "frog", { x: 0.08, y: 0.42, w: 0.16, h: 0.18 });
+      prepareAnimal(turtleReady, "turtle", { x: 0.16, y: 0.46, w: 0.14, h: 0.22 });
+      useStyle(species === "frog" || species === "turtle" ? species : "yellow");
       mountToggle();
       refreshIcons();
       if (window.stage && window.exportRoot) {
@@ -781,6 +788,10 @@
     load("fish-ref.jpg", function (canvas) {
       fishReady = canvas;
       fishBadge = badge;
+      tryBoot();
+    });
+    load("frog-ref.jpg", function (canvas) {
+      frogReady = canvas;
       tryBoot();
     });
     load("turtle-ref.jpg", function (canvas) {
