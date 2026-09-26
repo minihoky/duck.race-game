@@ -1,6 +1,7 @@
 (function () {
   const SPECIES_KEY = "duck-race-species";
-  let species = localStorage.getItem(SPECIES_KEY) === "fish" ? "fish" : "duck";
+  const savedSpecies = localStorage.getItem(SPECIES_KEY);
+  let species = savedSpecies === "fish" || savedSpecies === "turtle" ? savedSpecies : "duck";
   let art = null;
   let badge = null;
   let hooked = false;
@@ -237,8 +238,28 @@
     });
   }
 
+  function prepareTurtle(canvas) {
+    const box = measureOpaque(canvas);
+    const plate = {
+      x: Math.round(box.x + box.w * 0.16),
+      y: Math.round(box.y + box.h * 0.46),
+      w: Math.round(box.w * 0.14),
+      h: Math.round(box.h * 0.22),
+    };
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#161616";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(10, box.w * 0.012);
+    ctx.beginPath();
+    ctx.roundRect(plate.x, plate.y, plate.w, plate.h, Math.min(plate.w, plate.h) * 0.28);
+    ctx.fill();
+    ctx.stroke();
+    packs.turtle = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
+  }
+
   function useStyle(name) {
-    const pack = packs[name] || packs.costume;
+    const pack = packs[name];
     if (!pack) return;
     active = name;
     art = pack.canvas;
@@ -603,11 +624,13 @@
     hooked = true;
     const original = stage.update.bind(stage);
     stage.update = function () {
-      if (species === "fish" && canSkin()) {
-        useStyle(currentStyle());
-        applyFish(window.exportRoot);
-      }
-      else if (species === "duck" && window.exportRoot) restore(window.exportRoot);
+      if (species !== "duck" && canSkin()) {
+        const style = species === "turtle" ? "turtle" : currentStyle();
+        if (packs[style]) {
+          useStyle(style);
+          applyFish(window.exportRoot);
+        }
+      } else if (species === "duck" && window.exportRoot) restore(window.exportRoot);
       placeToggle();
       return original();
     };
@@ -663,9 +686,12 @@
       ctx.beginPath();
       ctx.arc(47, 26, 2, 0, Math.PI * 2);
       ctx.fill();
-    } else if (art) {
-      const bounds = fishBounds(art);
-      ctx.drawImage(art, bounds.x, bounds.y, bounds.w, bounds.h, 4, 14, 56, 36);
+    } else if (kind === "fish" && packs.yellow) {
+      const bounds = fishBounds(packs.yellow.canvas);
+      ctx.drawImage(packs.yellow.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 4, 14, 56, 36);
+    } else if (kind === "turtle" && packs.turtle) {
+      const bounds = fishBounds(packs.turtle.canvas);
+      ctx.drawImage(packs.turtle.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 2, 16, 60, 34);
     }
     return canvas;
   }
@@ -695,23 +721,23 @@
     const style = document.createElement("style");
     style.textContent = [
       "#species-switch{position:absolute;left:8px;bottom:8px;z-index:40;display:flex;align-items:center;gap:0;padding:4px;background:#2b2b2b;border-radius:999px;box-shadow:0 1px 0 rgba(255,255,255,.14) inset, 0 2px 5px rgba(0,0,0,.45);pointer-events:auto}",
-      "#species-switch button{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#fff;font:800 20px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 16px 5px 7px;cursor:pointer;white-space:nowrap}",
+      "#species-switch button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 18px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;white-space:nowrap}",
       "#species-switch button.is-on{background:#3dce2b}",
       "#species-switch canvas{width:36px !important;height:36px !important;display:block !important;flex:0 0 36px !important;position:static !important;background:transparent !important}",
     ].join("");
     document.head.appendChild(style);
     const bar = document.createElement("div");
     bar.id = "species-switch";
-    ["duck", "fish"].forEach(function (kind) {
+    ["duck", "fish", "turtle"].forEach(function (kind) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.species = kind;
       button.appendChild(paintToggleIcon(kind));
-      button.appendChild(document.createTextNode(kind === "duck" ? "Duck" : "Fish"));
+      button.appendChild(document.createTextNode(kind === "duck" ? "Duck" : kind === "fish" ? "Fish" : "Turtle"));
       button.addEventListener("click", function () {
         choose(kind);
       });
-      button.style.cssText = "display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#fff;font:800 20px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 16px 5px 7px;cursor:pointer;white-space:nowrap;";
+      button.style.cssText = "display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 18px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;white-space:nowrap;";
       const icon = button.querySelector("canvas");
       if (icon) icon.style.cssText = "width:36px;height:36px;display:block;flex:0 0 36px;position:static;background:transparent;";
       bar.appendChild(button);
@@ -720,29 +746,55 @@
     syncToggle();
   }
 
+  function refreshIcons() {
+    ["fish", "turtle"].forEach(function (kind) {
+      const icon = document.querySelector('#species-switch button[data-species="' + kind + '"] canvas');
+      if (!icon) return;
+      const next = paintToggleIcon(kind);
+      next.style.cssText = icon.style.cssText;
+      icon.replaceWith(next);
+    });
+  }
+
   function boot() {
-    const img = new Image();
-    img.onload = function () {
-      buildPacks(knockout(img));
-      useStyle("yellow");
+    let fishReady = null;
+    let turtleReady = null;
+    let fishBadge = null;
+    function tryBoot() {
+      if (!fishReady || !turtleReady || !fishBadge) return;
+      badge = fishBadge;
+      buildPacks(fishReady);
+      prepareTurtle(turtleReady);
+      useStyle(species === "turtle" ? "turtle" : "yellow");
       mountToggle();
-      const fishIcon = document.querySelector('#species-switch button[data-species="fish"] canvas');
-      if (fishIcon) {
-        const next = paintToggleIcon("fish");
-        next.style.cssText = fishIcon.style.cssText;
-        fishIcon.replaceWith(next);
-      }
+      refreshIcons();
       if (window.stage && window.exportRoot) {
         hook(window.stage);
-        if (species === "fish") window.stage.update();
+        if (species !== "duck") window.stage.update();
       }
-    };
-    img.src = "fish-ref.jpg";
+    }
+    function load(src, done) {
+      const img = new Image();
+      img.onload = function () { done(knockout(img)); };
+      img.src = src;
+    }
+    load("fish-ref.jpg", function (canvas) {
+      fishReady = canvas;
+      fishBadge = badge;
+      tryBoot();
+    });
+    load("turtle-ref.jpg", function (canvas) {
+      turtleReady = canvas;
+      tryBoot();
+    });
     const wait = window.setInterval(function () {
       if (!window.stage || !window.exportRoot || !document.getElementById("animation_container")) return;
       window.clearInterval(wait);
       mountToggle();
-      if (art) hook(window.stage);
+      if (art) {
+        refreshIcons();
+        hook(window.stage);
+      }
     }, 200);
   }
 
