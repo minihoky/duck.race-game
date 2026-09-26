@@ -232,16 +232,29 @@
     }
     let host = body;
     let inCard = false;
+    let inRace = false;
     while (host) {
       if (host.name === "choiceToggle") inCard = true;
+      if (/^character\d/.test(host.name || "")) inRace = true;
       host = host.parent;
     }
-    if (inCard) anchor.y -= (colourBounds ? colourBounds.height : 24) * 0.18;
     const span = fishOpaque();
-    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.82 : 1.42) : 150;
+    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.78 : inRace ? 1.12 : 1.42) : 150;
     const scale = targetW / span.w;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
+    if (inCard) {
+      let card = body;
+      while (card && card.name !== "choiceToggle") card = card.parent;
+      const box = card && card.nominalBounds;
+      const globalCenter = box ? card.localToGlobal(box.x + box.width * 0.431, box.y + box.height * 0.4) : null;
+      const center = globalCenter ? body.globalToLocal(globalCenter.x, globalCenter.y) : anchor;
+      bitmap.regX = span.x + span.w / 2;
+      bitmap.regY = span.y + span.h / 2;
+      bitmap.x = center.x;
+      bitmap.y = center.y;
+      return;
+    }
     bitmap.regX = badge ? badge.x + badge.w / 2 : span.x + span.w * 0.42;
     bitmap.regY = badge ? badge.y + badge.h / 2 : span.y + span.h * 0.55;
     bitmap.x = anchor.x;
