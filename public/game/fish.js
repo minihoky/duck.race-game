@@ -1,7 +1,7 @@
 (function () {
   const SPECIES_KEY = "duck-race-species";
   const savedSpecies = localStorage.getItem(SPECIES_KEY);
-  let species = savedSpecies === "fish" || savedSpecies === "frog" || savedSpecies === "turtle" ? savedSpecies : "duck";
+  let species = savedSpecies === "fish" || savedSpecies === "frog" || savedSpecies === "turtle" || savedSpecies === "seahorse" ? savedSpecies : "duck";
   let art = null;
   let badge = null;
   let hooked = false;
@@ -313,12 +313,13 @@
     return node._fishBox;
   }
 
-  function stampNumber(digit, label) {
+  function stampNumber(digit, label, source) {
+    const picture = source || art;
     const canvas = document.createElement("canvas");
-    canvas.width = art.width;
-    canvas.height = art.height;
+    canvas.width = picture.width;
+    canvas.height = picture.height;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(art, 0, 0);
+    ctx.drawImage(picture, 0, 0);
     if (!badge) return canvas;
     const inset = Math.max(4, Math.round(Math.min(badge.w, badge.h) * 0.16));
     const x = badge.x + inset;
@@ -408,9 +409,15 @@
       host = host.parent;
     }
     const span = fishOpaque();
-    const fit = active === "frog" ? 0.78 : 1;
-    const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
-    const scale = targetW / span.w;
+    let scale;
+    if (active === "seahorse") {
+      const targetH = colourBounds && colourBounds.height > 30 ? colourBounds.height * (inCard ? 0.62 : inRace ? 0.92 : 1.05) : 86;
+      scale = targetH / span.h;
+    } else {
+      const fit = active === "frog" ? 0.78 : 1;
+      const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
+      scale = targetW / span.w;
+    }
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
     if (inCard) {
@@ -425,20 +432,94 @@
       bitmap.y = center.y;
       return;
     }
-    bitmap.regX = badge ? badge.x + badge.w / 2 : span.x + span.w * 0.42;
-    bitmap.regY = badge ? badge.y + badge.h / 2 : span.y + span.h * 0.55;
+    if (active === "seahorse") {
+      bitmap.regX = span.x + span.w / 2;
+      bitmap.regY = span.y + span.h / 2;
+    } else {
+      bitmap.regX = badge ? badge.x + badge.w / 2 : span.x + span.w * 0.42;
+      bitmap.regY = badge ? badge.y + badge.h / 2 : span.y + span.h * 0.55;
+    }
     bitmap.x = anchor.x;
     bitmap.y = anchor.y;
+    bitmap.rotation = 0;
+    if (active === "frog" && inRace && racing) hopFrog(bitmap, anchor, colourBounds ? colourBounds.height * 0.22 : 18);
   }
 
-  function makeBitmap(number, digit, label) {
+  let racing = false;
+
+  function readRacing() {
+    let found = false;
+    let running = false;
+    function walk(node) {
+      if (!node || found) return;
+      if (node.name === "tStart") {
+        found = true;
+        running = node.text === "Pause";
+        return;
+      }
+      (node.children || []).forEach(walk);
+    }
+    if (window.exportRoot) walk(window.exportRoot);
+    racing = running;
+  }
+
+  function hopFrog(bitmap, anchor, lift) {
+    if (bitmap._hopPhase == null) {
+      const match = String(bitmap._number || "").match(/(\d)\s*$/);
+      bitmap._hopPhase = match ? Number(match[1]) * 0.41 : 0;
+    }
+    const period = 480;
+    const cycle = ((Date.now() + bitmap._hopPhase * period) % period) / period;
+    const hop = cycle < 0.62 ? Math.sin((cycle / 0.62) * Math.PI) : 0;
+    bitmap.y = anchor.y - hop * lift;
+    bitmap.x = anchor.x + hop * lift * 0.18;
+    bitmap.rotation = -hop * 8;
+    bitmap.scaleY *= 1 + hop * 0.1;
+    bitmap.scaleX *= 1 - hop * 0.06;
+  }
+
+  function makeBitmap(number, digit, label, source) {
     const key = number || "plain";
-    if (!plates.has(key)) plates.set(key, stampNumber(digit, label));
+    if (!plates.has(key)) plates.set(key, stampNumber(digit, label, source));
     const bitmap = new createjs.Bitmap(plates.get(key));
     bitmap.name = "raceFish";
     bitmap.mouseEnabled = false;
     bitmap._number = key;
     return bitmap;
+  }
+
+  let wetArt = null;
+  let wetSource = null;
+  let wetStart = 0;
+  let wetEnd = 0;
+
+  function submergedArt(start, end) {
+    if (wetArt && wetSource === art && wetStart === start && wetEnd === end) return wetArt;
+    const span = fishOpaque();
+    const canvas = document.createElement("canvas");
+    canvas.width = art.width;
+    canvas.height = art.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(art, 0, 0);
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = image.data;
+    const fadeTop = span.y + span.h * start;
+    const fadeBottom = span.y + span.h * end;
+    const spanPx = Math.max(1, fadeBottom - fadeTop);
+    for (let y = Math.floor(fadeTop); y < canvas.height; y += 1) {
+      const keep = y >= fadeBottom ? 0 : 1 - (y - fadeTop) / spanPx;
+      const row = y * canvas.width;
+      for (let x = 0; x < canvas.width; x += 1) {
+        const offset = (row + x) * 4 + 3;
+        data[offset] = Math.round(data[offset] * keep);
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    wetArt = canvas;
+    wetSource = art;
+    wetStart = start;
+    wetEnd = end;
+    return canvas;
   }
 
   function hatSibling(node) {
@@ -474,13 +555,22 @@
     const digit = findDigit(node);
     if (digit) markHidden(digit);
     const label = readNumber(node);
-    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1"));
+    let host = node;
+    let picture = null;
+    while (host) {
+      if (/^character\d/.test(host.name || "")) {
+        if (active === "seahorse") picture = submergedArt(0.53, 0.66);
+        else if (active === "costume" || active === "yellow" || active === "colors") picture = submergedArt(0.84, 0.97);
+      }
+      host = host.parent;
+    }
+    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "");
     let fish = node.children.find(function (kid) {
       return kid && kid.name === "raceFish";
     });
     if (!fish || fish._number !== number) {
       if (fish) node.removeChild(fish);
-      fish = makeBitmap(number, digit, label || "1");
+      fish = makeBitmap(number, digit, label || "1", picture);
       node.addChild(fish);
     } else {
       node.setChildIndex(fish, node.numChildren - 1);
@@ -625,6 +715,7 @@
     hooked = true;
     const original = stage.update.bind(stage);
     stage.update = function () {
+      readRacing();
       if (species !== "duck" && canSkin()) {
         const style = species === "fish" ? currentStyle() : species;
         if (packs[style]) {
@@ -696,6 +787,11 @@
     } else if (kind === "turtle" && packs.turtle) {
       const bounds = fishBounds(packs.turtle.canvas);
       ctx.drawImage(packs.turtle.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 2, 16, 60, 34);
+    } else if (kind === "seahorse" && packs.seahorse) {
+      const bounds = fishBounds(packs.seahorse.canvas);
+      const dw = Math.max(8, Math.round(56 * bounds.w / bounds.h));
+      const dx = Math.round((64 - dw) / 2);
+      ctx.drawImage(packs.seahorse.canvas, bounds.x, bounds.y, bounds.w, bounds.h, dx, 4, dw, 56);
     }
     return canvas;
   }
@@ -732,8 +828,8 @@
     document.head.appendChild(style);
     const bar = document.createElement("div");
     bar.id = "species-switch";
-    const labels = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle" };
-    ["duck", "fish", "frog", "turtle"].forEach(function (kind) {
+    const labels = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle", seahorse: "Seahorse" };
+    ["duck", "fish", "frog", "turtle", "seahorse"].forEach(function (kind) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.species = kind;
@@ -752,7 +848,7 @@
   }
 
   function refreshIcons() {
-    ["fish", "frog", "turtle"].forEach(function (kind) {
+    ["fish", "frog", "turtle", "seahorse"].forEach(function (kind) {
       const icon = document.querySelector('#species-switch button[data-species="' + kind + '"] canvas');
       if (!icon) return;
       const next = paintToggleIcon(kind);
@@ -765,14 +861,16 @@
     let fishReady = null;
     let frogReady = null;
     let turtleReady = null;
+    let seahorseReady = null;
     let fishBadge = null;
     function tryBoot() {
-      if (!fishReady || !frogReady || !turtleReady || !fishBadge) return;
+      if (!fishReady || !frogReady || !turtleReady || !seahorseReady || !fishBadge) return;
       badge = fishBadge;
       buildPacks(fishReady);
       prepareAnimal(frogReady, "frog", { x: 0.08, y: 0.42, w: 0.16, h: 0.18 });
       prepareAnimal(turtleReady, "turtle", { x: 0.16, y: 0.46, w: 0.14, h: 0.22 });
-      useStyle(species === "frog" || species === "turtle" ? species : "yellow");
+      prepareAnimal(seahorseReady, "seahorse", { x: 0.38, y: 0.37, w: 0.26, h: 0.13 });
+      useStyle(species === "frog" || species === "turtle" || species === "seahorse" ? species : "yellow");
       mountToggle();
       refreshIcons();
       if (window.stage && window.exportRoot) {
@@ -796,6 +894,10 @@
     });
     load("turtle-ref.jpg", function (canvas) {
       turtleReady = canvas;
+      tryBoot();
+    });
+    load("seahorse-ref.jpg", function (canvas) {
+      seahorseReady = canvas;
       tryBoot();
     });
     const wait = window.setInterval(function () {
