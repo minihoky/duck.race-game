@@ -400,13 +400,397 @@
     return node._fishBox;
   }
 
-  function stampNumber(digit, label, source) {
-    const picture = source || art;
+  const FROG_LOOKS = [3, 22, 40, 49, 19, 12, 9, 44];
+  // mul is hat width divided by the pupil. above is how far the opening sits above the pupil, in pupil-widths.
+  // back shifts the opening toward the tail. tilt rotates clockwise so a raised brim comes down over the face.
+  const FROG_HAT_FIT = {
+    3: { mul: 2.3, above: .09, back: 1.1, ax: 0.46, tilt: 0.12 },
+    22: { mul: 2.0, above:  0.54, back: 0.5, ax: 0.5, tilt: 0 },
+    40: { mul: 2.35, above: .35, back: .8, ax: 0.5, tilt: 0.12 },
+    49: { mul: 1.9, above: 0.40, back: .8, ax: 0.5, tilt: 0 },
+    19: { mul: 2.15, above: 0.54, back: 0.5, ax: 0.5, tilt: 0 },
+    12: { mul: 2.35, above: .35, back: .8, ax: 0.5, tilt: 0.12 },
+    9: { mul: 2.0, above:  0.54, back: 0.5, ax: 0.5, tilt: 0 },
+    44: { mul: 2.35, above: .35, back: .8, ax: 0.5, tilt: 0.12 },
+  };
+  let frogLooks = null;
+
+  function frogLookFrame(node, label) {
+    let host = node;
+    while (host) {
+      if (host.name === "choiceToggle") return 0;
+      host = host.parent;
+    }
+    const number = parseInt(label, 10);
+    if (!Number.isFinite(number) || number <= 0) return 0;
+    return FROG_LOOKS[(number - 1) % FROG_LOOKS.length];
+  }
+
+  function rasterAccessory(clip, frame) {
+    clip.gotoAndStop(frame);
+    const accessory = (clip.children || []).find(function (kid) {
+      return kid && kid.name && kid.name !== "duckColour" && kid.name !== "duckPattern";
+    });
+    if (!accessory) return null;
     const canvas = document.createElement("canvas");
-    canvas.width = picture.width;
-    canvas.height = picture.height;
+    canvas.width = 360;
+    canvas.height = 360;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(picture, 0, 0);
+    ctx.translate(180, 200);
+    accessory.draw(ctx);
+    const data = ctx.getImageData(0, 0, 360, 360).data;
+    let minX = 360;
+    let minY = 360;
+    let maxX = 0;
+    let maxY = 0;
+    let count = 0;
+    for (let y = 0; y < 360; y += 1) {
+      for (let x = 0; x < 360; x += 1) {
+        if (data[(y * 360 + x) * 4 + 3] < 20) continue;
+        count += 1;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (!count) return null;
+    const trimmed = document.createElement("canvas");
+    trimmed.width = maxX - minX + 1;
+    trimmed.height = maxY - minY + 1;
+    trimmed.getContext("2d").drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+    return keepHatPiece(trimmed);
+  }
+
+  function keepHatPiece(canvas) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const ctx = canvas.getContext("2d");
+    const image = ctx.getImageData(0, 0, width, height);
+    const data = image.data;
+    const seen = new Uint8Array(width * height);
+    const keep = new Uint8Array(width * height);
+    let bestCount = 0;
+    let pieces = 0;
+    for (let index = 0; index < width * height; index += 1) {
+      if (seen[index] || data[index * 4 + 3] < 20) continue;
+      const stack = [index];
+      seen[index] = 1;
+      const cells = [];
+      while (stack.length) {
+        const current = stack.pop();
+        cells.push(current);
+        const x = current % width;
+        const y = (current / width) | 0;
+        const neighbors = [current - 1, current + 1, current - width, current + width];
+        for (let side = 0; side < 4; side += 1) {
+          const next = neighbors[side];
+          if (next < 0 || next >= width * height || seen[next] || data[next * 4 + 3] < 20) continue;
+          const nx = next % width;
+          const ny = (next / width) | 0;
+          if (side < 2 && (ny !== y || Math.abs(nx - x) !== 1)) continue;
+          seen[next] = 1;
+          stack.push(next);
+        }
+      }
+      pieces += 1;
+      if (cells.length > bestCount) {
+        bestCount = cells.length;
+        keep.fill(0);
+        cells.forEach(function (cell) { keep[cell] = 1; });
+      }
+    }
+    if (pieces > 1) {
+      for (let index = 0; index < width * height; index += 1) {
+        if (!keep[index]) data[index * 4 + 3] = 0;
+      }
+      ctx.putImageData(image, 0, 0);
+    }
+    return hatMetrics(canvas);
+  }
+
+  function hatMetrics(canvas) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    const rows = [];
+    for (let y = 0; y < height; y += 1) {
+      let count = 0;
+      let sum = 0;
+      for (let x = 0; x < width; x += 1) {
+        if (data[(y * width + x) * 4 + 3] < 20) continue;
+        count += 1;
+        sum += x;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+      if (count) rows.push({ y: y, count: count, cx: sum / count });
+    }
+    if (!rows.length) return { canvas: canvas, wear: 0.8, ax: 0.5 };
+    const cut = document.createElement("canvas");
+    cut.width = Math.max(1, maxX - minX + 1);
+    cut.height = Math.max(1, maxY - minY + 1);
+    cut.getContext("2d").drawImage(canvas, minX, minY, cut.width, cut.height, 0, 0, cut.width, cut.height);
+    const maxCount = rows.reduce(function (best, row) { return Math.max(best, row.count); }, 1);
+    const wide = rows.filter(function (row) { return row.count >= maxCount * 0.42; });
+    const seat = wide.length ? wide[wide.length - 1] : rows[rows.length - 1];
+    return {
+      canvas: cut,
+      wear: (seat.y - minY) / cut.height,
+      ax: (seat.cx - minX) / cut.width,
+    };
+  }
+
+  function ensureFrogLooks(clip) {
+    if (frogLooks) return frogLooks;
+    const saved = clip.currentFrame;
+    const paused = clip.paused;
+    frogLooks = [];
+    try {
+      for (let frame = 0; frame < clip.totalFrames; frame += 1) {
+        const raster = rasterAccessory(clip, frame);
+        frogLooks.push(raster ? { canvas: raster.canvas, wear: raster.wear, ax: raster.ax } : null);
+      }
+    } finally {
+      clip.gotoAndStop(saved);
+      clip.paused = paused;
+    }
+    return frogLooks;
+  }
+
+  function frogHead(canvas) {
+    if (canvas._frogHead) return canvas._frogHead;
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.52);
+    const x1 = Math.floor(box.x + box.w * 0.9);
+    const y0 = Math.floor(box.y + box.h * 0.04);
+    const y1 = Math.floor(box.y + box.h * 0.4);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        let edge = false;
+        for (let oy = -2; oy <= 2 && !edge; oy += 2) {
+          for (let ox = -2; ox <= 2; ox += 2) {
+            const nx = x + ox;
+            const ny = y + oy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height || data[(ny * width + nx) * 4 + 3] < 160) edge = true;
+          }
+        }
+        if (!edge) dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        if (sumN < 40) continue;
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (blobW < 12 || blobH < 12 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.76;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.2;
+    const pupilW = pupil ? pupil.w : box.w * 0.1;
+    const pupilH = pupil ? pupil.h : pupilW;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.6;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    let crownY = eyeTop;
+    for (let y = eyeTop; y >= box.y; y -= 1) {
+      if (data[(y * width + cx) * 4 + 3] < 40) break;
+      crownY = y;
+    }
+    canvas._frogHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._frogHead;
+  }
+
+  function poseHat(look, tilt) {
+    if (!tilt) return look;
+    if (look._pose) return look._pose;
+    const src = look.canvas;
+    const cos = Math.abs(Math.cos(tilt));
+    const sin = Math.abs(Math.sin(tilt));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(src.width * cos + src.height * sin) + 4;
+    canvas.height = Math.ceil(src.width * sin + src.height * cos) + 4;
+    const ctx = canvas.getContext("2d");
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(tilt);
+    ctx.drawImage(src, -src.width / 2, -src.height / 2);
+    look._pose = hatMetrics(canvas);
+    return look._pose;
+  }
+
+  function planFrogHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = frogHead(picture);
+    const fit = FROG_HAT_FIT[frame] || { mul: 1.1, drop: 1, forward: 0.5, ax: 0.5 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.pupilCy - head.pupilW * fit.above;
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
+  function revealEye(ctx, picture, padX, padY) {
+    const head = picture._frogHead;
+    if (!head) return;
+    const src = picture.getContext("2d").getImageData(0, 0, picture.width, picture.height);
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    const image = ctx.getImageData(0, 0, width, height);
+    const cx = head.pupilCx;
+    const cy = head.pupilCy;
+    const rx = Math.max(head.pupilW, (head.eyeRight - head.eyeLeft) * 0.55) * 1.08;
+    const ry = Math.max(head.pupilH, (head.eyeBottom - head.eyeTop) * 0.55) * 1.12;
+    const x0 = Math.max(0, Math.floor(cx - rx));
+    const x1 = Math.min(picture.width - 1, Math.ceil(cx + rx));
+    const y0 = Math.max(0, Math.floor(cy - ry));
+    const y1 = Math.min(picture.height - 1, Math.ceil(cy + ry));
+    for (let y = y0; y <= y1; y += 1) {
+      for (let x = x0; x <= x1; x += 1) {
+        const nx = (x - cx) / rx;
+        const ny = (y - cy) / ry;
+        if (nx * nx + ny * ny > 1) continue;
+        const source = (y * picture.width + x) * 4;
+        if (src.data[source + 3] < 30) continue;
+        const red = src.data[source];
+        const green = src.data[source + 1];
+        const blue = src.data[source + 2];
+        const max = Math.max(red, green, blue);
+        const min = Math.min(red, green, blue);
+        const eyePixel = min > 200 || max < 70;
+        if (!eyePixel) continue;
+        const dx = x + padX;
+        const dy = y + padY;
+        if (dx < 0 || dy < 0 || dx >= width || dy >= height) continue;
+        const dest = (dy * width + dx) * 4;
+        image.data[dest] = src.data[source];
+        image.data[dest + 1] = src.data[source + 1];
+        image.data[dest + 2] = src.data[source + 2];
+        image.data[dest + 3] = src.data[source + 3];
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
+  function stampNumber(digit, label, source, lookFrame, lookHost) {
+    const picture = source || art;
+    const hat = lookFrame && lookHost ? planFrogHat(picture, lookFrame, lookHost) : null;
+    const padX = hat ? Math.max(0, Math.ceil(-hat.x)) : 0;
+    const padY = hat ? Math.max(0, Math.ceil(-hat.y)) : 0;
+    const extraR = hat ? Math.max(0, Math.ceil(hat.x + hat.w - picture.width)) : 0;
+    const extraB = hat ? Math.max(0, Math.ceil(hat.y + hat.h - picture.height)) : 0;
+    const canvas = document.createElement("canvas");
+    canvas.width = picture.width + padX + extraR;
+    canvas.height = picture.height + padY + extraB;
+    canvas._padX = padX;
+    canvas._padY = padY;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(picture, padX, padY);
+    if (hat) {
+      ctx.drawImage(hat.canvas, hat.x + padX, hat.y + padY, hat.w, hat.h);
+      revealEye(ctx, picture, padX, padY);
+    }
     if (!badge) return canvas;
     const width = canvas.width;
     const height = canvas.height;
@@ -451,8 +835,8 @@
       outline[i] = 1;
       body[i] = 0;
     }
-    let x = badge.x;
-    let y = badge.y;
+    let x = badge.x + padX;
+    let y = badge.y + padY;
     let w = badge.w;
     let h = badge.h;
     function onBody(px, py) {
@@ -632,15 +1016,17 @@
       return;
     }
     const pivot = packs[active] && packs[active].pivot;
+    const padX = bitmap.image && bitmap.image._padX ? bitmap.image._padX : 0;
+    const padY = bitmap.image && bitmap.image._padY ? bitmap.image._padY : 0;
     if (active === "seahorse") {
       bitmap.regX = span.x + span.w / 2;
       bitmap.regY = span.y + span.h / 2;
     } else if (pivot) {
-      bitmap.regX = pivot.x;
-      bitmap.regY = pivot.y;
+      bitmap.regX = pivot.x + padX;
+      bitmap.regY = pivot.y + padY;
     } else {
-      bitmap.regX = span.x + span.w * 0.42;
-      bitmap.regY = span.y + span.h * 0.55;
+      bitmap.regX = span.x + span.w * 0.42 + padX;
+      bitmap.regY = span.y + span.h * 0.55 + padY;
     }
     bitmap.x = anchor.x;
     bitmap.y = anchor.y;
@@ -683,9 +1069,9 @@
     bitmap.scaleX *= 1 - hop * 0.06;
   }
 
-  function makeBitmap(number, digit, label, source) {
+  function makeBitmap(number, digit, label, source, lookFrame, lookHost) {
     const key = number || "plain";
-    if (!plates.has(key)) plates.set(key, stampNumber(digit, label, source));
+    if (!plates.has(key)) plates.set(key, stampNumber(digit, label, source, lookFrame, lookHost));
     const bitmap = new createjs.Bitmap(plates.get(key));
     bitmap.name = "raceFish";
     bitmap.mouseEnabled = false;
@@ -968,13 +1354,14 @@
       }
       host = host.parent;
     }
-    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "");
+    const lookFrame = active === "frog" ? frogLookFrame(node, label) : 0;
+    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "");
     let fish = node.children.find(function (kid) {
       return kid && kid.name === "raceFish";
     });
     if (!fish || fish._number !== number) {
       if (fish) node.removeChild(fish);
-      fish = makeBitmap(number, digit, label || "1", picture);
+      fish = makeBitmap(number, digit, label || "1", picture, lookFrame, node);
       node.addChild(fish);
     } else {
       node.setChildIndex(fish, node.numChildren - 1);
