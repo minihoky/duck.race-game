@@ -8,6 +8,8 @@ import CountdownClock from "./pages/CountdownClock";
 import Subscription from "./pages/Subscription";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import VerifyEmail from "./pages/VerifyEmail";
+import ResetPassword from "./pages/ResetPassword";
 
 export default function App() {
   return (
@@ -21,6 +23,8 @@ export default function App() {
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Home />} />
       </Routes>
     </Layout>

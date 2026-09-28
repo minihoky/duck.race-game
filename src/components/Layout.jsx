@@ -3,13 +3,13 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { Icon, icons } from "./Icons";
 import { navItems, socials, supportEmail } from "../content/site";
 import { loadJson, saveJson } from "../lib/storage";
-
-const USER_KEY = "duck-race-user";
+import { logout, me } from "../lib/auth";
+import AuthDialog from "./AuthDialog";
 
 export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState(() => loadJson(USER_KEY, null));
+  const [user, setUser] = useState(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const location = useLocation();
@@ -18,10 +18,29 @@ export default function Layout({ children }) {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  function saveUser(next) {
+  useEffect(() => {
+    let cancel = false;
+    me().then((next) => {
+      if (!cancel) setUser(next);
+    });
+    function openSignIn() {
+      setSignInOpen(true);
+    }
+    window.addEventListener("duck-open-signin", openSignIn);
+    return () => {
+      cancel = true;
+      window.removeEventListener("duck-open-signin", openSignIn);
+    };
+  }, []);
+
+  function signedIn(next) {
     setUser(next);
-    saveJson(USER_KEY, next);
     setSignInOpen(false);
+  }
+
+  async function signOut() {
+    await logout();
+    setUser(null);
   }
 
   return (
@@ -58,7 +77,7 @@ export default function Layout({ children }) {
             </button>
             <Brand compact />
           </div>
-          <SignInButton user={user} onSignIn={() => setSignInOpen(true)} onSignOut={() => saveUser(null)} />
+          <SignInButton user={user} onSignIn={() => setSignInOpen(true)} onSignOut={signOut} />
         </div>
         <main className="-mt-16 flex-1 pb-16 md:pb-0">{children}</main>
         <Footer />
@@ -99,7 +118,7 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} onSave={saveUser} />}
+      {signInOpen && <AuthDialog onClose={() => setSignInOpen(false)} onSignedIn={signedIn} />}
       {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
@@ -135,16 +154,34 @@ function DuckMark() {
 }
 
 function SignInButton({ user, onSignIn, onSignOut }) {
+  const [open, setOpen] = useState(false);
   if (user) {
     return (
-      <button
-        type="button"
-        className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
-        onClick={onSignOut}
-      >
-        <Icon className="h-4 w-4">{icons.user}</Icon>
-        {user.name}
-      </button>
+      <div className="pointer-events-auto relative">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon className="h-4 w-4">{icons.user}</Icon>
+          {user.name}
+        </button>
+        {open && (
+          <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-100 bg-white p-3 text-sm shadow-lg">
+            <p className="truncate text-gray-500">{user.email}</p>
+            <button
+              type="button"
+              className="mt-2 w-full rounded-lg px-2 py-1.5 text-left font-semibold text-gray-800 hover:bg-gray-50"
+              onClick={() => {
+                setOpen(false);
+                onSignOut();
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
   return (
@@ -235,36 +272,6 @@ function Footer() {
         </div>
       </div>
     </footer>
-  );
-}
-
-function SignInDialog({ onClose, onSave }) {
-  const [name, setName] = useState("");
-
-  return (
-    <Modal title="Sign in" onClose={onClose}>
-      <p className="mb-4 text-sm text-gray-600">
-        This local copy keeps your display name on this device. It does not connect to the original Duck Race account system.
-      </p>
-      <form
-        className="space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name.trim()) onSave({ name: name.trim() });
-        }}
-      >
-        <input
-          className="w-full rounded-xl border border-gray-200 px-3 py-2"
-          placeholder="Your name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          autoFocus
-        />
-        <button className="w-full rounded-xl bg-sky-500 py-2 font-semibold text-white" type="submit">
-          Continue
-        </button>
-      </form>
-    </Modal>
   );
 }
 
