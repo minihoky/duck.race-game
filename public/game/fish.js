@@ -230,32 +230,119 @@
     return canvas;
   }
 
+  function bodyPlate(canvas) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const box = measureOpaque(canvas);
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const x0 = box.x + box.w * 0.3;
+    const x1 = box.x + box.w * 0.7;
+    const y0 = box.y + box.h * 0.32;
+    const y1 = box.y + box.h * 0.68;
+    let sx = 0;
+    let sy = 0;
+    let count = 0;
+    for (let y = Math.floor(y0); y <= y1; y += 2) {
+      for (let x = Math.floor(x0); x <= x1; x += 2) {
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        if (data[(y * width + x) * 4 + 3] < 20) continue;
+        sx += x;
+        sy += y;
+        count += 1;
+      }
+    }
+    const cx = count ? sx / count : box.x + box.w / 2;
+    const cy = count ? sy / count : box.y + box.h / 2;
+    // The duck plate is a wide rounded patch, about 1.4× as wide as it is tall.
+    const horizontal = box.w >= box.h;
+    let plateW;
+    let plateH;
+    if (horizontal) {
+      plateW = Math.round(box.w * 0.4);
+      plateH = Math.round(plateW / 1.4);
+      plateH = Math.min(plateH, Math.round(box.h * 0.46));
+    } else {
+      plateH = Math.round(box.h * 0.32);
+      plateW = Math.round(plateH / 1.35);
+      plateW = Math.min(plateW, Math.round(box.w * 0.62));
+    }
+    plateW = Math.max(22, plateW);
+    plateH = Math.max(16, plateH);
+    let x = Math.round(cx - plateW / 2);
+    let y = Math.round(cy - plateH / 2);
+    x = Math.max(0, Math.min(width - plateW, x));
+    y = Math.max(0, Math.min(height - plateH, y));
+    return { x: x, y: y, w: plateW, h: plateH };
+  }
+
+  function coverPlate(canvas, plate) {
+    if (!plate) return;
+    const ctx = canvas.getContext("2d");
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = image.data;
+    const pad = 8;
+    let color = null;
+    for (let y = plate.y - pad * 4; y < plate.y + plate.h + pad * 4 && !color; y += 2) {
+      for (let x = plate.x - pad * 4; x < plate.x + plate.w + pad * 4; x += 2) {
+        if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) continue;
+        if (x >= plate.x - pad && x < plate.x + plate.w + pad && y >= plate.y - pad && y < plate.y + plate.h + pad) continue;
+        const index = (y * canvas.width + x) * 4;
+        if (pixels[index + 3] < 40) continue;
+        if (pixels[index] > 210 && pixels[index + 1] > 210 && pixels[index + 2] > 210) continue;
+        color = [pixels[index], pixels[index + 1], pixels[index + 2]];
+        break;
+      }
+    }
+    if (!color) return;
+    for (let y = plate.y - pad; y < plate.y + plate.h + pad; y += 1) {
+      for (let x = plate.x - pad; x < plate.x + plate.w + pad; x += 1) {
+        if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) continue;
+        const index = (y * canvas.width + x) * 4;
+        if (pixels[index + 3] < 40) continue;
+        const max = Math.max(pixels[index], pixels[index + 1], pixels[index + 2]);
+        const min = Math.min(pixels[index], pixels[index + 1], pixels[index + 2]);
+        const inside = x >= plate.x && x < plate.x + plate.w && y >= plate.y && y < plate.y + plate.h;
+        const white = min > 186;
+        const ink = inside && max < 96;
+        if (!white && !ink) continue;
+        pixels[index] = color[0];
+        pixels[index + 1] = color[1];
+        pixels[index + 2] = color[2];
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
   function buildPacks(source) {
-    const plate = badge;
+    const oldPlate = badge;
     ["costume", "yellow", "colors"].forEach(function (kind) {
       const canvas = recolor(source, kind);
-      packs[kind] = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
+      coverPlate(canvas, oldPlate);
+      const plate = bodyPlate(canvas);
+      packs[kind] = {
+        canvas: canvas,
+        badge: plate,
+        pivot: oldPlate ? { x: oldPlate.x + oldPlate.w / 2, y: oldPlate.y + oldPlate.h / 2 } : { x: plate.x + plate.w / 2, y: plate.y + plate.h / 2 },
+        opaque: measureOpaque(canvas)
+      };
     });
   }
 
   function prepareAnimal(canvas, name, spot) {
     const box = measureOpaque(canvas);
-    const plate = {
+    const oldPlate = {
       x: Math.round(box.x + box.w * spot.x),
       y: Math.round(box.y + box.h * spot.y),
       w: Math.round(box.w * spot.w),
-      h: Math.round(box.h * spot.h),
+      h: Math.round(box.h * spot.h)
     };
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#161616";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(10, box.w * 0.012);
-    ctx.beginPath();
-    ctx.roundRect(plate.x, plate.y, plate.w, plate.h, Math.min(plate.w, plate.h) * 0.28);
-    ctx.fill();
-    ctx.stroke();
-    packs[name] = { canvas: canvas, badge: plate, opaque: measureOpaque(canvas) };
+    const plate = bodyPlate(canvas);
+    packs[name] = {
+      canvas: canvas,
+      badge: plate,
+      pivot: { x: oldPlate.x + oldPlate.w / 2, y: oldPlate.y + oldPlate.h / 2 },
+      opaque: measureOpaque(canvas)
+    };
   }
 
   function useStyle(name) {
@@ -321,27 +408,131 @@
     const ctx = canvas.getContext("2d");
     ctx.drawImage(picture, 0, 0);
     if (!badge) return canvas;
-    const inset = Math.max(4, Math.round(Math.min(badge.w, badge.h) * 0.16));
-    const x = badge.x + inset;
-    const y = badge.y + inset;
-    const w = Math.max(1, badge.w - inset * 2);
-    const h = Math.max(1, badge.h - inset * 2);
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, Math.min(w, h) * 0.28);
-    ctx.fill();
+    const width = canvas.width;
+    const height = canvas.height;
+    const base = ctx.getImageData(0, 0, width, height);
+    const pixels = base.data;
+    const body = new Uint8Array(width * height);
+    const outline = new Uint8Array(width * height);
+    function nearClear(px, py) {
+      for (let oy = -2; oy <= 2; oy += 1) {
+        for (let ox = -2; ox <= 2; ox += 1) {
+          const nx = px + ox;
+          const ny = py + oy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) return true;
+          if (pixels[(ny * width + nx) * 4 + 3] < 40) return true;
+        }
+      }
+      return false;
+    }
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = y * width + x;
+        const offset = index * 4;
+        if (pixels[offset + 3] < 48) continue;
+        const max = Math.max(pixels[offset], pixels[offset + 1], pixels[offset + 2]);
+        if (max < 78 && nearClear(x, y)) outline[index] = 1;
+        else body[index] = 1;
+      }
+    }
+    const fringe = new Uint8Array(width * height);
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = y * width + x;
+        if (!outline[index]) continue;
+        fringe[index - 1] = 1;
+        fringe[index + 1] = 1;
+        fringe[index - width] = 1;
+        fringe[index + width] = 1;
+      }
+    }
+    for (let i = 0; i < width * height; i += 1) {
+      if (!fringe[i] || outline[i]) continue;
+      outline[i] = 1;
+      body[i] = 0;
+    }
+    let x = badge.x;
+    let y = badge.y;
+    let w = badge.w;
+    let h = badge.h;
+    function onBody(px, py) {
+      const sx = Math.round(px);
+      const sy = Math.round(py);
+      if (sx < 0 || sy < 0 || sx >= width || sy >= height) return false;
+      return body[sy * width + sx] === 1;
+    }
+    function plateInside(px, py, pw, ph) {
+      const r = Math.min(pw, ph) * 0.28;
+      const margin = Math.max(3, Math.round(Math.min(pw, ph) * 0.08));
+      for (let i = 0; i <= 16; i += 1) {
+        const t = i / 16;
+        if (!onBody(px + r + (pw - r * 2) * t, py + margin)) return false;
+        if (!onBody(px + r + (pw - r * 2) * t, py + ph - margin)) return false;
+        if (!onBody(px + margin, py + r + (ph - r * 2) * t)) return false;
+        if (!onBody(px + pw - margin, py + r + (ph - r * 2) * t)) return false;
+      }
+      const arc = r * 0.62;
+      return onBody(px + arc, py + arc) && onBody(px + pw - arc, py + arc) && onBody(px + arc, py + ph - arc) && onBody(px + pw - arc, py + ph - arc);
+    }
+    for (let guard = 0; guard < 18 && w > 18 && h > 14 && !plateInside(x, y, w, h); guard += 1) {
+      const dw = Math.max(1, Math.round(w * 0.05));
+      const dh = Math.max(1, Math.round(h * 0.05));
+      x += dw;
+      y += dh;
+      w -= dw * 2;
+      h -= dh * 2;
+    }
+    const radius = Math.min(w, h) * 0.28;
+    const line = Math.max(2, Math.round(Math.min(w, h) * 0.055));
+    const layer = document.createElement("canvas");
+    layer.width = width;
+    layer.height = height;
+    const plate = layer.getContext("2d");
+    plate.fillStyle = "#ffffff";
+    plate.beginPath();
+    plate.roundRect(x, y, w, h, radius);
+    plate.fill();
+    const filled = plate.getImageData(0, 0, width, height);
+    const fill = filled.data;
+    for (let i = 0; i < width * height; i += 1) {
+      if (fill[i * 4 + 3] < 16) continue;
+      if (!body[i]) fill[i * 4 + 3] = 0;
+    }
+    plate.putImageData(filled, 0, 0);
+    const edge = document.createElement("canvas");
+    edge.width = width;
+    edge.height = height;
+    const stroke = edge.getContext("2d");
+    stroke.strokeStyle = "#1a1a1a";
+    stroke.lineJoin = "round";
+    stroke.lineWidth = line;
+    stroke.beginPath();
+    stroke.roundRect(x + line / 2, y + line / 2, Math.max(1, w - line), Math.max(1, h - line), Math.max(2, radius - line / 2));
+    stroke.stroke();
+    const edged = stroke.getImageData(0, 0, width, height);
+    const marks = edged.data;
+    for (let i = 0; i < width * height; i += 1) {
+      if (marks[i * 4 + 3] < 16) continue;
+      if (!body[i]) marks[i * 4 + 3] = 0;
+    }
+    stroke.putImageData(edged, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.drawImage(edge, 0, 0);
+    const inset = Math.max(3, Math.round(Math.min(w, h) * 0.2));
     const box = digit && drawnBox(digit);
+    const innerW = Math.max(1, w - inset * 2);
+    const innerH = Math.max(1, h - inset * 2);
     if (box && box.w < 24 && box.h < 28) {
-      const scale = Math.min(w / box.w, h / box.h) * 0.86;
+      const scale = Math.min(innerW / box.w, innerH / box.h);
       const dw = box.w * scale;
       const dh = box.h * scale;
-      ctx.drawImage(box.canvas, box.x, box.y, box.w, box.h, badge.x + (badge.w - dw) / 2, badge.y + (badge.h - dh) / 2, dw, dh);
+      ctx.drawImage(box.canvas, box.x, box.y, box.w, box.h, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
     } else {
-      ctx.fillStyle = "#161616";
+      ctx.fillStyle = "#1a1a1a";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = "800 " + Math.round(h * 0.92) + "px Arial";
-      ctx.fillText(label || "1", badge.x + badge.w / 2, badge.y + badge.h / 2 + h * 0.06);
+      ctx.font = "700 " + Math.round(innerH * 0.86) + "px Arial";
+      ctx.fillText(label || "1", x + w / 2, y + h / 2 + innerH * 0.02);
     }
     return canvas;
   }
@@ -440,12 +631,16 @@
       bitmap.y = center.y;
       return;
     }
+    const pivot = packs[active] && packs[active].pivot;
     if (active === "seahorse") {
       bitmap.regX = span.x + span.w / 2;
       bitmap.regY = span.y + span.h / 2;
+    } else if (pivot) {
+      bitmap.regX = pivot.x;
+      bitmap.regY = pivot.y;
     } else {
-      bitmap.regX = badge ? badge.x + badge.w / 2 : span.x + span.w * 0.42;
-      bitmap.regY = badge ? badge.y + badge.h / 2 : span.y + span.h * 0.55;
+      bitmap.regX = span.x + span.w * 0.42;
+      bitmap.regY = span.y + span.h * 0.55;
     }
     bitmap.x = anchor.x;
     bitmap.y = anchor.y;
