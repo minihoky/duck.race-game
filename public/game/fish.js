@@ -884,7 +884,7 @@
     let ready = false;
     function walk(node, depth) {
       if (!node || depth > 8 || ready) return;
-      if (node.name === "bg" && node.cacheCanvas && node.cacheCanvas.width > 800) ready = true;
+      if (node.name === "bg" && ((node.cacheCanvas && node.cacheCanvas.width > 800) || node._lakeReady)) ready = true;
       for (const kid of node.children || []) walk(kid, depth + 1);
     }
     if (window.exportRoot) walk(window.exportRoot, 0);
