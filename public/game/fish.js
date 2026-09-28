@@ -443,6 +443,8 @@
     bitmap.y = anchor.y;
     bitmap.rotation = 0;
     if (active === "frog" && inRace && racing) hopFrog(bitmap, anchor, colourBounds ? colourBounds.height * 0.22 : 18);
+    else if (active === "turtle" && inRace && racing) paddleTurtle(bitmap);
+    else if (bitmap._plate && bitmap.image !== bitmap._plate) bitmap.image = bitmap._plate;
   }
 
   let racing = false;
@@ -485,7 +487,206 @@
     bitmap.name = "raceFish";
     bitmap.mouseEnabled = false;
     bitmap._number = key;
+    bitmap._plate = plates.get(key);
     return bitmap;
+  }
+
+  function pointInPolygon(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+      const yi = points[i][1];
+      const yj = points[j][1];
+      const xi = points[i][0];
+      const xj = points[j][0];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function turtleLimbs(source) {
+    const box = measureOpaque(source);
+    const specs = [
+      {
+        pivot: [0.14, 0.63],
+        polygon: [[0.00, 0.63], [0.18, 0.60], [0.20, 0.82], [0.12, 0.97], [0.00, 0.90]],
+      },
+      {
+        pivot: [0.56, 0.73],
+        polygon: [[0.50, 0.73], [0.76, 0.70], [0.78, 0.92], [0.58, 1.02], [0.48, 0.90]],
+      },
+    ];
+    const image = source.getContext("2d").getImageData(0, 0, source.width, source.height);
+    const data = image.data;
+    return specs.map(function (spec) {
+      const points = spec.polygon.map(function (point) {
+        return [box.x + point[0] * box.w, box.y + point[1] * box.h];
+      });
+      let minX = source.width;
+      let minY = source.height;
+      let maxX = 0;
+      let maxY = 0;
+      points.forEach(function (point) {
+        minX = Math.min(minX, point[0]);
+        minY = Math.min(minY, point[1]);
+        maxX = Math.max(maxX, point[0]);
+        maxY = Math.max(maxY, point[1]);
+      });
+      minX = Math.max(0, Math.floor(minX) - 8);
+      minY = Math.max(0, Math.floor(minY) - 8);
+      maxX = Math.min(source.width - 1, Math.ceil(maxX) + 8);
+      maxY = Math.min(source.height - 1, Math.ceil(maxY) + 8);
+      const mask = new Uint8Array(source.width * source.height);
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          if (!pointInPolygon(x, y, points)) continue;
+          const from = (y * source.width + x) * 4;
+          if (data[from + 3] < 20) continue;
+          const red = data[from];
+          const green = data[from + 1];
+          const blue = data[from + 2];
+          if (red > 220 && green > 220 && blue > 220) continue;
+          if (red > 180 && green > 150 && blue < 150) continue;
+          mask[y * source.width + x] = 1;
+        }
+      }
+      for (let pass = 0; pass < 6; pass += 1) {
+        const grow = [];
+        for (let y = minY; y <= maxY; y += 1) {
+          for (let x = minX; x <= maxX; x += 1) {
+            const index = y * source.width + x;
+            if (!mask[index]) continue;
+            for (let dy = -1; dy <= 1; dy += 1) {
+              for (let dx = -1; dx <= 1; dx += 1) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue;
+                const next = ny * source.width + nx;
+                if (mask[next]) continue;
+                const from = next * 4;
+                if (data[from + 3] < 20) continue;
+                if (Math.max(data[from], data[from + 1], data[from + 2]) > 80) continue;
+                grow.push(next);
+              }
+            }
+          }
+        }
+        grow.forEach(function (index) { mask[index] = 1; });
+      }
+      let cutMinX = source.width;
+      let cutMinY = source.height;
+      let cutMaxX = 0;
+      let cutMaxY = 0;
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          if (!mask[y * source.width + x]) continue;
+          if (x < cutMinX) cutMinX = x;
+          if (y < cutMinY) cutMinY = y;
+          if (x > cutMaxX) cutMaxX = x;
+          if (y > cutMaxY) cutMaxY = y;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, cutMaxX - cutMinX + 1);
+      canvas.height = Math.max(1, cutMaxY - cutMinY + 1);
+      const cut = canvas.getContext("2d").createImageData(canvas.width, canvas.height);
+      for (let y = cutMinY; y <= cutMaxY; y += 1) {
+        for (let x = cutMinX; x <= cutMaxX; x += 1) {
+          if (!mask[y * source.width + x]) continue;
+          const from = (y * source.width + x) * 4;
+          const to = ((y - cutMinY) * canvas.width + (x - cutMinX)) * 4;
+          cut.data[to] = data[from];
+          cut.data[to + 1] = data[from + 1];
+          cut.data[to + 2] = data[from + 2];
+          cut.data[to + 3] = data[from + 3];
+        }
+      }
+      canvas.getContext("2d").putImageData(cut, 0, 0);
+      const absX = box.x + spec.pivot[0] * box.w;
+      const absY = box.y + spec.pivot[1] * box.h;
+      return { canvas: canvas, mask: mask, pivotX: absX - cutMinX, pivotY: absY - cutMinY, absX: absX, absY: absY };
+    });
+  }
+
+  function eraseTurtleLegs(plate) {
+    const legs = packs.turtle && packs.turtle.legs;
+    const canvas = document.createElement("canvas");
+    canvas.width = plate.width;
+    canvas.height = plate.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(plate, 0, 0);
+    if (!legs) return canvas;
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = image.data;
+    legs.forEach(function (leg) {
+      if (!leg.mask || leg.mask.length !== data.length / 4) return;
+      for (let index = 0; index < leg.mask.length; index += 1) {
+        if (leg.mask[index]) data[index * 4 + 3] = 0;
+      }
+    });
+    ctx.putImageData(image, 0, 0);
+    return canvas;
+  }
+
+  function paddleTurtle(bitmap) {
+    const legs = packs.turtle && packs.turtle.legs;
+    const plate = bitmap._plate;
+    if (!legs || !plate) return;
+    if (!bitmap._body) bitmap._body = eraseTurtleLegs(plate);
+    if (!bitmap._paddle) {
+      bitmap._paddle = document.createElement("canvas");
+      bitmap._paddle.width = plate.width;
+      bitmap._paddle.height = plate.height;
+    }
+    if (bitmap._hopPhase == null) {
+      const match = String(bitmap._number || "").match(/(\d)\s*$/);
+      bitmap._hopPhase = match ? Number(match[1]) * 0.37 : 0;
+    }
+    const swing = Math.sin(Date.now() / 150 + bitmap._hopPhase * Math.PI * 2);
+    const ctx = bitmap._paddle.getContext("2d");
+    ctx.clearRect(0, 0, bitmap._paddle.width, bitmap._paddle.height);
+    ctx.drawImage(bitmap._body, 0, 0);
+    legs.forEach(function (leg, index) {
+      const angle = swing * (index === 0 ? 0.5 : -0.58);
+      ctx.save();
+      ctx.translate(leg.absX, leg.absY);
+      ctx.rotate(angle);
+      ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY);
+      ctx.restore();
+      mendTurtleJoint(ctx, plate, leg.absX, leg.absY, 58);
+    });
+    bitmap.image = bitmap._paddle;
+  }
+
+  function mendTurtleJoint(ctx, plate, cx, cy, radius) {
+    const x0 = Math.max(0, Math.floor(cx - radius));
+    const y0 = Math.max(0, Math.floor(cy - radius));
+    const x1 = Math.min(ctx.canvas.width, Math.ceil(cx + radius));
+    const y1 = Math.min(ctx.canvas.height, Math.ceil(cy + radius));
+    const width = x1 - x0;
+    const height = y1 - y0;
+    if (width <= 0 || height <= 0) return;
+    const source = plate.getContext("2d").getImageData(x0, y0, width, height).data;
+    const image = ctx.getImageData(x0, y0, width, height);
+    const data = image.data;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const dx = x0 + x - cx;
+        const dy = y0 + y - cy;
+        if (dx * dx + dy * dy > radius * radius) continue;
+        const index = (y * width + x) * 4;
+        if (source[index + 3] < 20) continue;
+        const red = source[index];
+        const green = source[index + 1];
+        const blue = source[index + 2];
+        if (Math.max(red, green, blue) < 90) continue;
+        if (red > 220 && green > 220 && blue > 220) continue;
+        data[index] = red;
+        data[index + 1] = green;
+        data[index + 2] = blue;
+        data[index + 3] = source[index + 3];
+      }
+    }
+    ctx.putImageData(image, x0, y0);
   }
 
   let wetArt = null;
@@ -869,6 +1070,7 @@
       buildPacks(fishReady);
       prepareAnimal(frogReady, "frog", { x: 0.08, y: 0.42, w: 0.16, h: 0.18 });
       prepareAnimal(turtleReady, "turtle", { x: 0.16, y: 0.46, w: 0.14, h: 0.22 });
+      packs.turtle.legs = turtleLimbs(packs.turtle.canvas);
       prepareAnimal(seahorseReady, "seahorse", { x: 0.38, y: 0.37, w: 0.26, h: 0.13 });
       useStyle(species === "frog" || species === "turtle" || species === "seahorse" ? species : "yellow");
       mountToggle();
