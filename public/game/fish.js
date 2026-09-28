@@ -910,149 +910,14 @@
     return settledFrames > 6;
   }
 
-  let speciesBar = null;
-  let speciesBitmap = null;
-  let speciesSlots = [];
-  let speciesStamp = "";
-
-  function listIsOpen() {
-    const settings = findSettings();
-    const list = settings && settings.list;
-    if (!list) return false;
-    return !!((list.btn_done && list.btn_done.parent) || (list.listCover && list.listCover.parent));
-  }
-
-  function roundBar(ctx, x, y, w, h, r) {
-    const radius = Math.max(0, Math.min(r, w / 2, h / 2));
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
-  }
-
-  function paintSpeciesBar() {
-    if (!window.createjs || !window.exportRoot) return;
-    const kinds = ["duck", "fish", "frog", "turtle", "seahorse"];
-    const labels = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle", seahorse: "Seahorse" };
-    const font = "700 26px 'Segoe UI', 'Trebuchet MS', Arial, sans-serif";
-    const measure = document.createElement("canvas").getContext("2d");
-    measure.font = font;
-    const icon = 64;
-    const gap = 12;
-    const padL = 14;
-    const padR = 26;
-    const padY = 10;
-    const barPad = 10;
-    const pixel = 2;
-    const widths = kinds.map(function (kind) {
-      return padL + icon + gap + Math.ceil(measure.measureText(labels[kind]).width) + padR;
-    });
-    const btnH = padY * 2 + icon;
-    const barW = barPad * 2 + widths.reduce(function (sum, width) { return sum + width; }, 0);
-    const barH = barPad * 2 + btnH;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(barW * pixel);
-    canvas.height = Math.ceil(barH * pixel);
-    const ctx = canvas.getContext("2d");
-    ctx.scale(pixel, pixel);
-    roundBar(ctx, 1, 1, barW - 2, barH - 2, barH / 2);
-    const bg = ctx.createLinearGradient(0, 0, 0, barH);
-    bg.addColorStop(0, "#ffffff");
-    bg.addColorStop(1, "#f6fbff");
-    ctx.fillStyle = bg;
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(186,214,232,0.95)";
-    ctx.stroke();
-    speciesSlots = [];
-    let x = barPad;
-    kinds.forEach(function (kind, index) {
-      const w = widths[index];
-      const selected = kind === species;
-      const prevSelected = index > 0 && kinds[index - 1] === species;
-      if (selected) {
-        roundBar(ctx, x + 2, barPad + 2, w - 4, btnH - 4, (btnH - 4) / 2);
-        const fill = ctx.createLinearGradient(0, barPad, 0, barPad + btnH);
-        fill.addColorStop(0, "#e8f4ff");
-        fill.addColorStop(1, "#d3e9fc");
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = "rgba(146,194,228,0.75)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else if (index > 0 && !prevSelected) {
-        ctx.fillStyle = "#d7e4ef";
-        ctx.fillRect(x, barPad + btnH * 0.24, 1, btnH * 0.52);
-      }
-      ctx.drawImage(paintToggleIcon(kind), x + padL, barPad + padY, icon, icon);
-      ctx.fillStyle = "#2a4560";
-      ctx.font = font;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(labels[kind], x + padL + icon + gap, barPad + btnH / 2);
-      speciesSlots.push({ kind: kind, x: x * pixel, w: w * pixel, h: barH * pixel });
-      x += w;
-    });
-    if (!speciesBar) {
-      speciesBar = new createjs.Container();
-      speciesBar.name = "speciesBar";
-      speciesBar.cursor = "pointer";
-      speciesBar.mouseChildren = false;
-      speciesBitmap = new createjs.Bitmap(canvas);
-      speciesBar.addChild(speciesBitmap);
-      speciesBar.on("mousedown", function (evt) {
-        if (!speciesBitmap) return;
-        const local = speciesBitmap.globalToLocal(evt.stageX, evt.stageY);
-        const slot = speciesSlots.find(function (item) {
-          return local.x >= item.x && local.x < item.x + item.w && local.y >= 0 && local.y <= item.h;
-        });
-        if (slot) choose(slot.kind);
-      });
-      window.exportRoot.addChild(speciesBar);
-    } else {
-      speciesBitmap.image = canvas;
-      if (speciesBitmap.sourceRect) speciesBitmap.sourceRect = null;
-    }
-    speciesBar.slots = speciesSlots;
-    speciesBar._layoutW = barW;
-    speciesBar._layoutH = barH;
-    speciesStamp = species + ":" + (packs.yellow ? "1" : "0") + (packs.frog ? "1" : "0") + (packs.turtle ? "1" : "0") + (packs.seahorse ? "1" : "0");
-  }
-
   function placeToggle() {
-    const legacy = document.getElementById("species-switch");
-    if (legacy) legacy.style.display = "none";
+    const bar = document.getElementById("species-switch");
+    if (!bar) return;
     const settings = findSettings();
-    const show = !!(settings && settings.visible !== false && !listIsOpen());
-    if (!window.createjs || !window.exportRoot || !window.stage) return;
-    const stamp = species + ":" + (packs.yellow ? "1" : "0") + (packs.frog ? "1" : "0") + (packs.turtle ? "1" : "0") + (packs.seahorse ? "1" : "0");
-    if (!speciesBar || stamp !== speciesStamp) paintSpeciesBar();
-    if (!speciesBar || !speciesBitmap || !speciesBitmap.image) return;
-    if (!speciesBar.parent) window.exportRoot.addChild(speciesBar);
-    speciesBar.visible = show;
-    if (!show) return;
-    const stage = window.stage;
-    const sx = stage.scaleX || 1;
-    const sy = stage.scaleY || 1;
-    const pixel = 2;
-    const cssW = stage.canvas.clientWidth || stage.canvas.width;
-    const ratio = stage.canvas.width / cssW || 1;
-    const viewW = stage.canvas.width / sx;
-    const viewH = stage.canvas.height / sy;
-    let fit = 1;
-    if (speciesBar._layoutW > cssW - 24) fit = (cssW - 24) / speciesBar._layoutW;
-    speciesBitmap.scaleX = ratio * fit / (pixel * sx);
-    speciesBitmap.scaleY = ratio * fit / (pixel * sy);
-    const w = speciesBar._layoutW * ratio * fit / sx;
-    const h = speciesBar._layoutH * ratio * fit / sy;
-    const top = window.exportRoot.globalToLocal(0, 0);
-    const bottom = window.exportRoot.globalToLocal(viewW, viewH);
-    speciesBar.x = top.x + ((bottom.x - top.x) - w) / 2;
-    speciesBar.y = bottom.y - h - (8 * ratio / sy);
-    speciesBar.parent.setChildIndex(speciesBar, speciesBar.parent.numChildren - 1);
+    bar.style.visibility = settings && settings.visible === false ? "hidden" : "visible";
+    bar.style.left = "50%";
+    bar.style.bottom = "8px";
+    bar.style.transform = "translateX(-50%)";
   }
 
   function hook(stage) {
@@ -1142,7 +1007,13 @@
   }
 
   function syncToggle() {
-    speciesStamp = "";
+    const root = document.getElementById("species-switch");
+    if (!root) return;
+    root.querySelectorAll("button").forEach(function (button) {
+      const on = button.dataset.species === species;
+      button.classList.toggle("is-on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
 
   function choose(next) {
@@ -1155,12 +1026,46 @@
   }
 
   function mountToggle() {
-    const legacy = document.getElementById("species-switch");
-    if (legacy) legacy.remove();
+    const host = document.getElementById("animation_container");
+    if (!host || document.getElementById("species-switch")) return;
+    const style = document.createElement("style");
+    style.textContent = [
+      "#species-switch{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;padding:10px;background:linear-gradient(180deg,#ffffff 0%,#f6fbff 100%);border:1px solid rgba(186,214,232,.95);border-radius:999px;box-shadow:0 10px 24px rgba(18,70,110,.16),inset 0 1px 0 #fff;pointer-events:auto}",
+      "#species-switch button{position:relative;display:flex;align-items:center;gap:12px;border:0;background:transparent;color:#2a4560;font:700 26px/1 'Segoe UI','Trebuchet MS',Arial,sans-serif;border-radius:999px;padding:10px 26px 10px 14px;cursor:pointer;white-space:nowrap}",
+      "#species-switch button:hover{background:rgba(214,234,250,.7)}",
+      "#species-switch button.is-on{background:linear-gradient(180deg,#e8f4ff 0%,#d3e9fc 100%);box-shadow:inset 0 0 0 1px rgba(146,194,228,.6);color:#243e58}",
+      "#species-switch button.is-on:hover{background:linear-gradient(180deg,#e8f4ff 0%,#d3e9fc 100%)}",
+      "#species-switch button + button::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:#d7e4ef}",
+      "#species-switch button.is-on::before,#species-switch button.is-on + button::before,#species-switch button:hover::before,#species-switch button:hover + button::before{opacity:0}",
+      "#species-switch canvas{width:64px !important;height:64px !important;display:block !important;flex:0 0 64px !important;position:static !important;background:transparent !important}",
+    ].join("");
+    document.head.appendChild(style);
+    const bar = document.createElement("div");
+    bar.id = "species-switch";
+    const labels = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle", seahorse: "Seahorse" };
+    ["duck", "fish", "frog", "turtle", "seahorse"].forEach(function (kind) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.species = kind;
+      button.appendChild(paintToggleIcon(kind));
+      button.appendChild(document.createTextNode(labels[kind]));
+      button.addEventListener("click", function () {
+        choose(kind);
+      });
+      bar.appendChild(button);
+    });
+    host.appendChild(bar);
+    syncToggle();
   }
 
   function refreshIcons() {
-    speciesStamp = "";
+    ["fish", "frog", "turtle", "seahorse"].forEach(function (kind) {
+      const icon = document.querySelector('#species-switch button[data-species="' + kind + '"] canvas');
+      if (!icon) return;
+      const next = paintToggleIcon(kind);
+      next.style.cssText = icon.style.cssText;
+      icon.replaceWith(next);
+    });
   }
 
   function boot() {
