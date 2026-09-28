@@ -1,78 +1,33 @@
 (function () {
-  const style = document.createElement("style");
-  style.textContent = [
-    "#modern-clock{position:absolute;z-index:30;display:flex;align-items:center;gap:12px;box-sizing:border-box;padding:8px 12px;border-radius:22px;background:linear-gradient(180deg,#1f6f8a 0%,#14556e 42%,#0d3d52 100%);border:3px solid #10212b;box-shadow:0 5px 0 #10212b,0 12px 22px rgba(8,24,36,.28),inset 0 1px 0 rgba(255,255,255,.28);color:#f4fbff;font-family:'Trebuchet MS','Segoe UI',Arial,sans-serif;user-select:none;pointer-events:auto}",
-    "#modern-clock[hidden]{display:none !important}",
-    "#modern-clock button{border:2px solid #10212b;background:linear-gradient(180deg,#3c8eaa,#1d6078);color:#f4fbff;border-radius:14px;cursor:pointer;display:grid;place-items:center;padding:0;flex:0 0 auto;box-shadow:0 3px 0 #10212b,inset 0 1px 0 rgba(255,255,255,.35);transition:transform .12s ease,filter .12s ease}",
-    "#modern-clock button:hover{filter:brightness(1.08)}",
-    "#modern-clock button:active{transform:translateY(2px);box-shadow:0 1px 0 #10212b,inset 0 1px 0 rgba(255,255,255,.35)}",
-    "#modern-clock [data-act='clock']{border-radius:50%;background:linear-gradient(180deg,#ffe58a,#f5b301);color:#1c2b3a}",
-    "#modern-clock .screen{flex:1;min-width:0;align-self:stretch;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 6px;border-radius:16px;background:rgba(6,22,32,.38);box-shadow:inset 0 3px 0 rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.06)}",
-    "#modern-clock .time{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}",
-    "#modern-clock .group{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:2.5ch;line-height:1}",
-    "#modern-clock .group b{font-family:'Arial Black','Trebuchet MS',Arial,sans-serif;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.04em;color:#f7fbff;text-shadow:0 3px 0 rgba(0,0,0,.35)}",
-    "#modern-clock .group small{margin-top:4px;font-size:10px;font-weight:800;letter-spacing:.16em;color:#ffd56a}",
-    "#modern-clock .colon{font-style:normal;font-weight:900;color:#ffd56a;text-shadow:0 2px 0 rgba(0,0,0,.35);animation:clock-blink 1s steps(1) infinite}",
-    "#modern-clock .raw{text-align:center;font-family:'Arial Black','Trebuchet MS',Arial,sans-serif;font-weight:900;letter-spacing:-.03em;text-shadow:0 3px 0 rgba(0,0,0,.35)}",
-    "#modern-clock .time[hidden],#modern-clock .raw[hidden],#modern-clock .group[hidden],#modern-clock .colon[hidden]{display:none !important}",
-    "#modern-clock .side{display:flex;flex-direction:column;gap:6px;flex:0 0 auto}",
-    "#modern-clock .hms{font-size:9px;font-weight:800;letter-spacing:.06em;line-height:1.05;color:#f4fbff}",
-    "@keyframes clock-blink{50%{opacity:.35}}"
-  ].join("");
-  document.head.appendChild(style);
+  const legacy = document.getElementById("modern-clock");
+  if (legacy) legacy.remove();
 
-  const labels = ["HRS", "MIN", "SEC", "CS"];
-  const card = document.createElement("div");
-  card.id = "modern-clock";
-  card.hidden = true;
-  card.innerHTML = [
-    '<button type="button" data-act="clock" title="Alarm clock mode" aria-label="Alarm clock mode">',
-    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5.2 6.2 8.2 8.6M18.8 6.2 15.8 8.6" stroke-linecap="round"/><circle cx="12" cy="13.2" r="6.6"/><path d="M12 10.2v3.2l2.3 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    "</button>",
-    '<div class="screen">',
-    '<div class="time" aria-live="polite">',
-    group(0), '<i class="colon">:</i>',
-    group(1), '<i class="colon">:</i>',
-    group(2), '<i class="colon">:</i>',
-    group(3),
-    "</div>",
-    '<div class="raw" hidden></div>',
-    "</div>",
-    '<div class="side">',
-    '<button type="button" data-act="format" title="Change the timer display" aria-label="Change the timer display"><span class="hms">HH<br>MM<br>SS</span></button>',
-    '<button type="button" data-act="sound" title="Change the alarm sound" aria-label="Change the alarm sound">',
-    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6.5 16V11a5.5 5.5 0 0 1 11 0v5l1.4 2h-13.8l1.4-2z" stroke-linejoin="round"/><path d="M10 18.5a2 2 0 0 0 4 0" stroke-linecap="round"/></svg>',
-    "</button>",
-    "</div>"
-  ].join("");
+  let clockPanel = null;
+  let clockBitmap = null;
+  let clockRegions = null;
+  let clockStamp = "";
 
-  function group(index) {
-    return '<div class="group" data-i="' + index + '"><b>00</b><small>' + labels[index] + "</small></div>";
+  function roundRect(ctx, x, y, w, h, r) {
+    const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
   }
-
-  const groups = card.querySelectorAll(".group");
-  const colons = card.querySelectorAll(".colon");
-  const nums = card.querySelectorAll(".group b");
-  const captions = card.querySelectorAll(".group small");
-  const timeRow = card.querySelector(".time");
-  const raw = card.querySelector(".raw");
-  let shown = "";
-
-  card.addEventListener("click", function (event) {
-    const button = event.target.closest("button");
-    if (!button) return;
-    const timer = clockTimer();
-    if (!timer) return;
-    const node = button.dataset.act === "clock" ? timer.btn_clock
-      : button.dataset.act === "sound" ? timer.btn_changesound
-      : timer.btn_hhmmss;
-    if (!node || !window.createjs) return;
-    node.dispatchEvent(new createjs.MouseEvent("mousedown", true, false, 0, 0));
-  });
 
   function clockTimer() {
     const settings = window.exportRoot && window.exportRoot.settings;
     return settings && settings.timer;
+  }
+
+  function editingList() {
+    const settings = window.exportRoot && window.exportRoot.settings;
+    const list = settings && settings.list;
+    if (!list) return false;
+    return !!((list.btn_done && list.btn_done.parent) || (list.listCover && list.listCover.parent));
   }
 
   function screenBox(node) {
@@ -91,50 +46,240 @@
     };
   }
 
-  function paint(text) {
-    if (text === shown) return;
-    shown = text;
-    const parts = text.match(/\d{1,2}/g);
-    const shaped = parts && /^[\d: ]+$/.test(text) && parts.length >= 2 && parts.length <= 4;
-    if (!shaped) {
-      timeRow.hidden = true;
-      raw.hidden = false;
-      raw.textContent = text;
-      return;
-    }
-    timeRow.hidden = false;
-    raw.hidden = true;
-    const names = parts.length === 4 ? labels
+  function readTime(text) {
+    const parts = String(text || "00:00:00").match(/\d{1,2}/g);
+    const shaped = parts && /^[\d: ]+$/.test(String(text || "")) && parts.length >= 2 && parts.length <= 4;
+    if (!shaped) return { raw: String(text || "") };
+    const names = parts.length === 4 ? ["HRS", "MIN", "SEC", "CS"]
       : parts.length === 2 ? ["MIN", "SEC"]
       : ["HRS", "MIN", "SEC"];
-    groups.forEach(function (node, index) {
-      node.hidden = index >= parts.length;
-      if (index < parts.length) {
-        nums[index].textContent = parts[index].padStart(2, "0");
-        captions[index].textContent = names[index];
+    return {
+      parts: parts.map(function (part) { return part.padStart(2, "0"); }),
+      names: names
+    };
+  }
+
+  function drawClockIcon(ctx, cx, cy, radius) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = "#1c2b3a";
+    ctx.lineWidth = Math.max(2, radius * 0.11);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.62, -radius * 0.62);
+    ctx.lineTo(-radius * 0.28, -radius * 0.28);
+    ctx.moveTo(radius * 0.62, -radius * 0.62);
+    ctx.lineTo(radius * 0.28, -radius * 0.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, radius * 0.08, radius * 0.46, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -radius * 0.16);
+    ctx.lineTo(0, radius * 0.14);
+    ctx.lineTo(radius * 0.2, radius * 0.28);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBell(ctx, cx, cy, radius) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = "#f4fbff";
+    ctx.lineWidth = Math.max(2, radius * 0.14);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.55, radius * 0.15);
+    ctx.lineTo(-radius * 0.55, -radius * 0.12);
+    ctx.arc(0, -radius * 0.12, radius * 0.55, Math.PI, 0);
+    ctx.lineTo(radius * 0.55, radius * 0.15);
+    ctx.lineTo(-radius * 0.72, radius * 0.42);
+    ctx.lineTo(radius * 0.72, radius * 0.42);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, radius * 0.58, radius * 0.22, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPanel(width, height, time) {
+    const pixel = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(2, Math.ceil(width * pixel));
+    canvas.height = Math.max(2, Math.ceil(height * pixel));
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixel, pixel);
+    const pad = Math.max(8, height * 0.07);
+    const gap = Math.max(8, height * 0.06);
+    const radius = Math.max(16, height * 0.16);
+    roundRect(ctx, 1.5, 1.5, width - 3, height - 3, radius);
+    const body = ctx.createLinearGradient(0, 0, 0, height);
+    body.addColorStop(0, "#1f6f8a");
+    body.addColorStop(0.42, "#14556e");
+    body.addColorStop(1, "#0d3d52");
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.lineWidth = Math.max(3, height * 0.025);
+    ctx.strokeStyle = "#10212b";
+    ctx.stroke();
+
+    const clockSize = height * 0.62;
+    const clockX = pad;
+    const clockY = (height - clockSize) / 2;
+    const sideW = Math.max(36, height * 0.34);
+    const sideX = width - pad - sideW;
+    const sideGap = Math.max(6, height * 0.045);
+    const sideH = (height - pad * 2 - sideGap) / 2;
+    const screenX = clockX + clockSize + gap;
+    const screenW = Math.max(20, sideX - gap - screenX);
+    const screenY = pad;
+    const screenH = height - pad * 2;
+
+    roundRect(ctx, screenX, screenY, screenW, screenH, Math.max(12, height * 0.1));
+    ctx.fillStyle = "rgba(6,22,32,0.38)";
+    ctx.fill();
+
+    const gold = ctx.createLinearGradient(clockX, clockY, clockX, clockY + clockSize);
+    gold.addColorStop(0, "#ffe58a");
+    gold.addColorStop(1, "#f5b301");
+    ctx.beginPath();
+    ctx.arc(clockX + clockSize / 2, clockY + clockSize / 2, clockSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = gold;
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, height * 0.018);
+    ctx.strokeStyle = "#10212b";
+    ctx.stroke();
+    drawClockIcon(ctx, clockX + clockSize / 2, clockY + clockSize / 2, clockSize * 0.34);
+
+    function sideButton(y, drawIcon) {
+      roundRect(ctx, sideX, y, sideW, sideH, Math.max(10, sideH * 0.28));
+      const fill = ctx.createLinearGradient(sideX, y, sideX, y + sideH);
+      fill.addColorStop(0, "#3c8eaa");
+      fill.addColorStop(1, "#1d6078");
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = "#10212b";
+      ctx.lineWidth = Math.max(2, height * 0.016);
+      ctx.stroke();
+      drawIcon();
+    }
+
+    sideButton(pad, function () {
+      ctx.fillStyle = "#f4fbff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "800 " + Math.max(8, Math.round(sideH * 0.2)) + "px 'Trebuchet MS', 'Segoe UI', Arial, sans-serif";
+      const cx = sideX + sideW / 2;
+      const cy = pad + sideH / 2;
+      ctx.fillText("HH", cx, cy - sideH * 0.26);
+      ctx.fillText("MM", cx, cy);
+      ctx.fillText("SS", cx, cy + sideH * 0.26);
+    });
+    sideButton(pad + sideH + sideGap, function () {
+      drawBell(ctx, sideX + sideW / 2, pad + sideH + sideGap + sideH / 2, Math.min(sideW, sideH) * 0.28);
+    });
+
+    ctx.save();
+    roundRect(ctx, screenX, screenY, screenW, screenH, Math.max(12, height * 0.1));
+    ctx.clip();
+    if (time.raw) {
+      ctx.fillStyle = "#f7fbff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.round(height * 0.28) + "px 'Arial Black', 'Trebuchet MS', Arial, sans-serif";
+      ctx.fillText(time.raw, screenX + screenW / 2, screenY + screenH / 2);
+    } else {
+      const digitSize = Math.max(22, Math.round(height * 0.38));
+      const labelSize = Math.max(9, Math.round(height * 0.09));
+      ctx.textAlign = "center";
+      ctx.font = "900 " + digitSize + "px 'Arial Black', 'Trebuchet MS', Arial, sans-serif";
+      const colon = ":";
+      const colonW = ctx.measureText(colon).width;
+      const widths = time.parts.map(function (part) { return Math.max(ctx.measureText(part).width, ctx.measureText("00").width); });
+      const total = widths.reduce(function (sum, width) { return sum + width; }, 0) + colonW * (time.parts.length - 1) + 8 * (time.parts.length - 1);
+      let x = screenX + (screenW - total) / 2;
+      const digitY = screenY + screenH * 0.40;
+      const labelY = screenY + screenH * 0.78;
+      time.parts.forEach(function (part, index) {
+        const w = widths[index];
+        ctx.fillStyle = "#f7fbff";
+        ctx.font = "900 " + digitSize + "px 'Arial Black', 'Trebuchet MS', Arial, sans-serif";
+        ctx.textBaseline = "middle";
+        ctx.fillText(part, x + w / 2, digitY);
+        ctx.fillStyle = "#ffd56a";
+        ctx.font = "800 " + labelSize + "px 'Trebuchet MS', 'Segoe UI', Arial, sans-serif";
+        ctx.fillText(time.names[index], x + w / 2, labelY);
+        x += w;
+        if (index < time.parts.length - 1) {
+          ctx.font = "900 " + Math.round(digitSize * 0.72) + "px 'Arial Black', 'Trebuchet MS', Arial, sans-serif";
+          ctx.textBaseline = "middle";
+          ctx.fillText(colon, x + 4 + colonW / 2, digitY);
+          x += colonW + 8;
+        }
+      });
+    }
+    ctx.restore();
+
+    return {
+      canvas: canvas,
+      regions: {
+        clock: { x: clockX * pixel, y: clockY * pixel, w: clockSize * pixel, h: clockSize * pixel },
+        format: { x: sideX * pixel, y: pad * pixel, w: sideW * pixel, h: sideH * pixel },
+        sound: { x: sideX * pixel, y: (pad + sideH + sideGap) * pixel, w: sideW * pixel, h: sideH * pixel }
       }
+    };
+  }
+
+  function press(node) {
+    if (!node || !window.createjs) return;
+    node.dispatchEvent(new createjs.MouseEvent("mousedown", true, false, 0, 0));
+    node.dispatchEvent(new createjs.MouseEvent("pressup", true, false, 0, 0));
+    node.dispatchEvent(new createjs.MouseEvent("click", true, false, 0, 0));
+  }
+
+  function hitRegion(local, region) {
+    return local.x >= region.x && local.x <= region.x + region.w && local.y >= region.y && local.y <= region.y + region.h;
+  }
+
+  function ensurePanel() {
+    if (clockPanel || !window.createjs || !window.exportRoot) return;
+    clockPanel = new createjs.Container();
+    clockPanel.name = "scoreClock";
+    clockPanel.mouseChildren = false;
+    clockPanel.cursor = "pointer";
+    clockBitmap = new createjs.Bitmap(document.createElement("canvas"));
+    clockPanel.addChild(clockBitmap);
+    clockPanel.on("mousedown", function (evt) {
+      if (!clockBitmap || !clockRegions) return;
+      const local = clockBitmap.globalToLocal(evt.stageX, evt.stageY);
+      const timer = clockTimer();
+      if (!timer) return;
+      if (hitRegion(local, clockRegions.clock)) press(timer.btn_clock);
+      else if (hitRegion(local, clockRegions.format)) press(timer.btn_hhmmss);
+      else if (hitRegion(local, clockRegions.sound)) press(timer.btn_changesound);
     });
-    colons.forEach(function (node, index) {
-      node.hidden = index >= parts.length - 1;
-    });
+    window.exportRoot.addChild(clockPanel);
   }
 
   function sync() {
+    const oldCard = document.getElementById("modern-clock");
+    if (oldCard) oldCard.remove();
     const settings = window.exportRoot && window.exportRoot.settings;
     const timer = settings && settings.timer;
     const digital = timer && timer.oldWay && timer.oldWay.visible !== false;
-    const show = !!(settings && settings.visible !== false && digital && timer.btn_clock && timer.btn_hhmmss && timer.btn_changesound);
-    card.hidden = !show;
-    if (!show) return;
+    const show = !editingList() && !!(settings && settings.visible !== false && digital && timer.btn_clock && timer.btn_hhmmss && timer.btn_changesound);
+    if (!show) {
+      if (clockPanel) clockPanel.visible = false;
+      return;
+    }
     const clock = screenBox(timer.btn_clock);
     const format = screenBox(timer.btn_hhmmss);
     const sound = screenBox(timer.btn_changesound);
     const stage = window.stage;
-    const canvas = stage && stage.canvas;
-    const host = card.parentElement;
-    if (!clock || !format || !sound || !canvas || !host) return;
-    const canvasRect = canvas.getBoundingClientRect();
-    const hostRect = host.getBoundingClientRect();
+    if (!clock || !format || !sound || !stage || !window.exportRoot) return;
     const clockW = clock.r - clock.x;
     const formatW = format.r - format.x;
     const formatH = format.b - format.y;
@@ -143,27 +288,33 @@
     const top = format.y - formatH * 0.28;
     const right = format.r + formatW * 0.48;
     const bottom = sound.b + soundH * 0.09;
-    const width = Math.max(240, right - left);
-    const height = Math.max(72, bottom - top);
-    card.style.left = (canvasRect.left - hostRect.left + left) + "px";
-    card.style.top = (canvasRect.top - hostRect.top + top) + "px";
-    card.style.width = width + "px";
-    card.style.height = height + "px";
-    const digit = Math.max(28, Math.round(height * 0.40));
-    nums.forEach(function (node) { node.style.fontSize = digit + "px"; });
-    captions.forEach(function (node) { node.style.fontSize = Math.max(10, Math.round(height * 0.09)) + "px"; });
-    colons.forEach(function (node) { node.style.fontSize = Math.round(digit * 0.78) + "px"; });
-    raw.style.fontSize = Math.round(digit * 0.72) + "px";
-    const main = card.querySelector('[data-act="clock"]');
-    const mainSize = Math.round(height * 0.62);
-    main.style.width = mainSize + "px";
-    main.style.height = mainSize + "px";
-    const side = Math.max(28, Math.round((height - 16 - 6) / 2));
-    card.querySelectorAll(".side button").forEach(function (node) {
-      node.style.width = Math.round(side * 1.15) + "px";
-      node.style.height = side + "px";
-    });
-    paint(String(timer.oldWay.display.text || "00:00:00"));
+    const width = Math.max(240, Math.round(right - left));
+    const height = Math.max(72, Math.round(bottom - top));
+    const text = String(timer.oldWay.display.text || "00:00:00");
+    const stamp = width + "x" + height + "|" + text;
+    ensurePanel();
+    if (!clockPanel || !clockBitmap) return;
+    if (stamp !== clockStamp) {
+      const drawn = drawPanel(width, height, readTime(text));
+      clockBitmap.image = drawn.canvas;
+      if (clockBitmap.sourceRect) clockBitmap.sourceRect = null;
+      clockRegions = drawn.regions;
+      clockPanel.regions = clockRegions;
+      clockStamp = stamp;
+      clockPanel._layoutW = width;
+      clockPanel._layoutH = height;
+    }
+    const sx = stage.scaleX || 1;
+    const sy = stage.scaleY || 1;
+    const pixel = 2;
+    const p = window.exportRoot.globalToLocal(left / sx, top / sy);
+    const q = window.exportRoot.globalToLocal((left + width) / sx, (top + height) / sy);
+    clockBitmap.scaleX = (q.x - p.x) / (width * pixel);
+    clockBitmap.scaleY = (q.y - p.y) / (height * pixel);
+    clockPanel.x = p.x;
+    clockPanel.y = p.y;
+    clockPanel.visible = true;
+    if (clockPanel.parent) clockPanel.parent.setChildIndex(clockPanel, clockPanel.parent.numChildren - 1);
   }
 
   function hook(stage) {
@@ -171,9 +322,8 @@
     stage.__clockHook = true;
     const original = stage.update.bind(stage);
     stage.update = function () {
-      const result = original();
       sync();
-      return result;
+      return original();
     };
     sync();
   }
@@ -181,7 +331,6 @@
   function boot() {
     const host = document.getElementById("animation_container");
     if (!host || !window.stage || !window.exportRoot) return false;
-    if (!card.parentElement) host.appendChild(card);
     hook(window.stage);
     return true;
   }
