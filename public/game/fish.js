@@ -915,8 +915,9 @@
     if (!bar) return;
     const settings = findSettings();
     bar.style.visibility = settings && settings.visible === false ? "hidden" : "visible";
-    bar.style.left = "8px";
+    bar.style.left = "50%";
     bar.style.bottom = "8px";
+    bar.style.transform = "translateX(-50%)";
   }
 
   function hook(stage) {
@@ -1029,10 +1030,14 @@
     if (!host || document.getElementById("species-switch")) return;
     const style = document.createElement("style");
     style.textContent = [
-      "#species-switch{position:absolute;left:8px;bottom:8px;z-index:40;display:flex;align-items:center;gap:0;padding:4px;background:#2b2b2b;border-radius:999px;box-shadow:0 1px 0 rgba(255,255,255,.14) inset, 0 2px 5px rgba(0,0,0,.45);pointer-events:auto}",
-      "#species-switch button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 16px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;white-space:nowrap}",
-      "#species-switch button.is-on{background:#3dce2b}",
-      "#species-switch canvas{width:36px !important;height:36px !important;display:block !important;flex:0 0 36px !important;position:static !important;background:transparent !important}",
+      "#species-switch{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;padding:10px;background:linear-gradient(180deg,#ffffff 0%,#f6fbff 100%);border:1px solid rgba(186,214,232,.95);border-radius:999px;box-shadow:0 10px 24px rgba(18,70,110,.16),inset 0 1px 0 #fff;pointer-events:auto}",
+      "#species-switch button{position:relative;display:flex;align-items:center;gap:12px;border:0;background:transparent;color:#2a4560;font:700 26px/1 'Segoe UI','Trebuchet MS',Arial,sans-serif;border-radius:999px;padding:10px 26px 10px 14px;cursor:pointer;white-space:nowrap}",
+      "#species-switch button:hover{background:rgba(214,234,250,.7)}",
+      "#species-switch button.is-on{background:linear-gradient(180deg,#e8f4ff 0%,#d3e9fc 100%);box-shadow:inset 0 0 0 1px rgba(146,194,228,.6);color:#243e58}",
+      "#species-switch button.is-on:hover{background:linear-gradient(180deg,#e8f4ff 0%,#d3e9fc 100%)}",
+      "#species-switch button + button::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:#d7e4ef}",
+      "#species-switch button.is-on::before,#species-switch button.is-on + button::before,#species-switch button:hover::before,#species-switch button:hover + button::before{opacity:0}",
+      "#species-switch canvas{width:64px !important;height:64px !important;display:block !important;flex:0 0 64px !important;position:static !important;background:transparent !important}",
     ].join("");
     document.head.appendChild(style);
     const bar = document.createElement("div");
@@ -1047,9 +1052,6 @@
       button.addEventListener("click", function () {
         choose(kind);
       });
-      button.style.cssText = "display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#fff;font:800 16px/1 'Trebuchet MS','Segoe UI',Arial,sans-serif;border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;white-space:nowrap;";
-      const icon = button.querySelector("canvas");
-      if (icon) icon.style.cssText = "width:36px;height:36px;display:block;flex:0 0 36px;position:static;background:transparent;";
       bar.appendChild(button);
     });
     host.appendChild(bar);
