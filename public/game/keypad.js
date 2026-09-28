@@ -99,6 +99,10 @@
     const oy = canvasRect.top - hostRect.top;
     pad.querySelectorAll("button").forEach(function (button) {
       const node = oldWay[button.dataset.key];
+      if (node && node.visible !== false) {
+        node._keyVisible = true;
+        node.visible = false;
+      }
       const box = node && screenBox(node);
       if (!box) return;
       const width = box.r - box.x;
