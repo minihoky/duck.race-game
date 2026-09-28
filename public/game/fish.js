@@ -421,11 +421,19 @@
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
     if (inCard) {
-      let card = body;
-      while (card && card.name !== "choiceToggle") card = card.parent;
-      const box = card && card.nominalBounds;
-      const globalCenter = box ? card.localToGlobal(box.x + box.width * 0.431, box.y + box.height * 0.30) : null;
-      const center = globalCenter ? body.globalToLocal(globalCenter.x, globalCenter.y) : anchor;
+      let center = anchor;
+      if (colour && colourBounds) {
+        const globalCenter = colour.localToGlobal(
+          colourBounds.x + colourBounds.width / 2,
+          colourBounds.y + colourBounds.height / 2
+        );
+        center = body.globalToLocal(globalCenter.x, globalCenter.y);
+        const visualW = colourBounds.width * Math.abs(colour.scaleX || 1);
+        const visualH = colourBounds.height * Math.abs(colour.scaleY || 1);
+        const fitted = Math.min(visualW / span.w, visualH / span.h);
+        bitmap.scaleX = fitted;
+        bitmap.scaleY = fitted;
+      }
       bitmap.regX = span.x + span.w / 2;
       bitmap.regY = span.y + span.h / 2;
       bitmap.x = center.x;
