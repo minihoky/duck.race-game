@@ -415,6 +415,110 @@
   };
   let frogLooks = null;
 
+  const FROG_COLORS = [50, 330, 297, 119, 360, 270];
+  let hatDeck = null;
+  let colorDeck = null;
+  let hatsLive = false;
+  let hatSawRacing = false;
+  let hatFinished = false;
+
+  function shuffleDeck(values) {
+    const deck = values.slice();
+    for (let i = deck.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const held = deck[i];
+      deck[i] = deck[j];
+      deck[j] = held;
+    }
+    return deck;
+  }
+
+  function shuffleHatDeck(racerCount) {
+    const hats = shuffleDeck(FROG_LOOKS);
+    const count = Math.max(1, racerCount || 5);
+    if (count < 2) {
+      hatDeck = Math.random() < 0.5 ? hats.concat([0]) : hats;
+      return;
+    }
+    const window = Math.min(count, hats.length + 1);
+    const start = hats.length - window + 1;
+    const slot = start + Math.floor(Math.random() * window);
+    hats.splice(slot, 0, 0);
+    hatDeck = hats;
+  }
+
+  function shuffleColorDeck() {
+    colorDeck = shuffleDeck(FROG_COLORS);
+  }
+
+  function dealFrogColor() {
+    if (!colorDeck || !colorDeck.length) shuffleColorDeck();
+    return colorDeck.pop();
+  }
+
+  function hslToRgb(hue, saturation, lightness) {
+    const h = ((hue % 360) + 360) % 360 / 360;
+    if (saturation <= 0) {
+      const gray = Math.round(lightness * 255);
+      return [gray, gray, gray];
+    }
+    const q = lightness < 0.5 ? lightness * (1 + saturation) : lightness + saturation - lightness * saturation;
+    const p = 2 * lightness - q;
+    function channel(t) {
+      let value = t;
+      if (value < 0) value += 1;
+      if (value > 1) value -= 1;
+      if (value < 1 / 6) return p + (q - p) * 6 * value;
+      if (value < 1 / 2) return q;
+      if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
+      return p;
+    }
+    return [
+      Math.round(channel(h + 1 / 3) * 255),
+      Math.round(channel(h) * 255),
+      Math.round(channel(h - 1 / 3) * 255),
+    ];
+  }
+
+  function tintFrog(source, hue) {
+    if (!hue) return source;
+    if (!source._frogTints) source._frogTints = new Map();
+    if (source._frogTints.has(hue)) return source._frogTints.get(hue);
+    const width = source.width;
+    const height = source.height;
+    const image = source.getContext("2d").getImageData(0, 0, width, height);
+    const data = image.data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
+      const red = data[i];
+      const green = data[i + 1];
+      const blue = data[i + 2];
+      const max = Math.max(red, green, blue);
+      const min = Math.min(red, green, blue);
+      if (max < 72 || min > 210) continue;
+      if (!(green > red + 10 && green > blue + 10)) continue;
+      const rf = red / 255;
+      const gf = green / 255;
+      const bf = blue / 255;
+      const hi = Math.max(rf, gf, bf);
+      const lo = Math.min(rf, gf, bf);
+      const lightness = (hi + lo) / 2;
+      const span = hi - lo;
+      const saturation = span === 0 ? 0 : span / (1 - Math.abs(2 * lightness - 1));
+      const sat = Math.min(0.84, Math.max(0.7, saturation * 0.95));
+      const next = hslToRgb(hue, sat, lightness);
+      data[i] = next[0];
+      data[i + 1] = next[1];
+      data[i + 2] = next[2];
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").putImageData(image, 0, 0);
+    source._frogTints.set(hue, canvas);
+    return canvas;
+  }
+
   function frogLookFrame(node, label) {
     let host = node;
     while (host) {
@@ -423,7 +527,23 @@
     }
     const number = parseInt(label, 10);
     if (!Number.isFinite(number) || number <= 0) return 0;
-    return FROG_LOOKS[(number - 1) % FROG_LOOKS.length];
+    if (!hatsLive) return FROG_LOOKS[(number - 1) % FROG_LOOKS.length];
+    if (node._frogHat == null) {
+      if (!hatDeck || !hatDeck.length) shuffleHatDeck();
+      node._frogHat = hatDeck.pop();
+    }
+    return node._frogHat;
+  }
+
+  function frogColor(node) {
+    let host = node;
+    while (host) {
+      if (host.name === "choiceToggle") return 0;
+      host = host.parent;
+    }
+    if (!hatsLive) return 0;
+    if (node._frogColor == null) node._frogColor = dealFrogColor();
+    return node._frogColor;
   }
 
   function rasterAccessory(clip, frame) {
@@ -1355,7 +1475,9 @@
       host = host.parent;
     }
     const lookFrame = active === "frog" ? frogLookFrame(node, label) : 0;
-    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "");
+    const color = active === "frog" ? frogColor(node) : 0;
+    const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "") + (color ? ":c" + color : "");
+    if (color) picture = tintFrog(picture || art, color);
     let fish = node.children.find(function (kid) {
       return kid && kid.name === "raceFish";
     });
@@ -1637,12 +1759,61 @@
     speciesBar.parent.setChildIndex(speciesBar, speciesBar.parent.numChildren - 1);
   }
 
+  function countRaceBodies(node) {
+    let total = 0;
+    function walk(current, card) {
+      if (!current || !current.children) return;
+      const inside = card || current.name === "choiceToggle";
+      const duck = current.children.some(function (kid) {
+        return kid && kid.name === "duckColour";
+      });
+      if (duck && !inside) {
+        const label = parseInt(readNumber(current), 10);
+        if (Number.isFinite(label) && label > 0) total += 1;
+      }
+      current.children.forEach(function (kid) {
+        walk(kid, inside);
+      });
+    }
+    walk(node, false);
+    return total;
+  }
+
   function hook(stage) {
     if (hooked) return;
     hooked = true;
     const original = stage.update.bind(stage);
     stage.update = function () {
       readRacing();
+      const settings = findSettings();
+      const onTrack = species === "frog" && (racing || (settings && settings.visible === false));
+      if (!onTrack) {
+        if (hatsLive) {
+          hatsLive = false;
+          hatSawRacing = false;
+          hatFinished = false;
+          hatDeck = null;
+          colorDeck = null;
+          skinned.forEach(function (body) {
+            body._frogHat = null;
+            body._frogColor = null;
+          });
+        }
+      } else if (!hatsLive || (racing && hatFinished)) {
+        hatsLive = true;
+        hatFinished = false;
+        hatDeck = null;
+        colorDeck = null;
+        skinned.forEach(function (body) {
+          body._frogHat = null;
+          body._frogColor = null;
+        });
+        shuffleHatDeck(countRaceBodies(window.exportRoot));
+        shuffleColorDeck();
+      } else if (!racing && hatSawRacing) {
+        hatFinished = true;
+      }
+      if (onTrack) hatSawRacing = racing;
       if (species !== "duck" && canSkin()) {
         const style = species === "fish" ? currentStyle() : species;
         if (packs[style]) {
