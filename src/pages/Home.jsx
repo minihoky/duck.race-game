@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { loadJson } from "../lib/storage";
 import { FeatureGrid, RelatedTools } from "../components/Marketing";
 import { Icon, icons } from "../components/Icons";
@@ -9,15 +9,6 @@ const steps = [
   { title: "Set Race Time", text: "Choose how long you want the duck race to last" },
   { title: "Start Racing", text: "Press start and watch the ducks compete!" },
   { title: "View Results", text: "See the winner and full race leaderboard" },
-];
-
-const searches = [
-  "duck race game",
-  "classroom race game",
-  "online duck competition",
-  "virtual racing game",
-  "fun classroom activity",
-  "what is a duck race",
 ];
 
 export default function Home() {
@@ -51,17 +42,9 @@ export default function Home() {
               Free Duck Race
               <span className="block text-sky-500">Name Picker</span>
             </h1>
-            <p className="mx-auto mb-8 max-w-2xl text-lg leading-relaxed text-gray-600 md:text-xl">
+            <p className="mx-auto max-w-2xl text-lg leading-relaxed text-gray-600 md:text-xl">
               Ready, set, quack! Join the most exciting duck racing adventure that's perfect for classrooms, parties, and fun gatherings!
             </p>
-            <div className="flex flex-col justify-center gap-4 sm:flex-row">
-              <a href="#game" className="rounded-xl bg-sky-500 px-8 py-4 text-lg font-semibold text-white hover:bg-sky-600">
-                Play Now — It's Free
-              </a>
-              <a href="#how-to-play" className="rounded-xl bg-gray-100 px-8 py-4 text-lg font-semibold text-gray-700 hover:bg-gray-200">
-                Learn More
-              </a>
-            </div>
           </div>
           <FeatureGrid
             items={[
@@ -155,23 +138,9 @@ export default function Home() {
         items={[
           { title: "Wheel of Names", text: "Need a random name picker? Try our Wheel of Names tool for fair and exciting selections in classrooms and events.", to: "/wheel-of-names" },
           { title: "Countdown Clock", text: "Need a free online countdown timer? Use our analog countdown clock with alarm sounds and fullscreen mode.", to: "/countdown-clock" },
-          { title: "Random Team Generator", text: "Need to create balanced teams? Our team generator helps you divide participants into fair and random groups." },
-          { title: "Random Question Picker", text: "Randomly select questions for quizzes, icebreakers, or classroom activities with our question picker tool." },
         ]}
       />
 
-      <section className="bg-white pb-20">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <h3 className="mb-6 text-lg font-semibold">Popular Search Terms</h3>
-          <div className="flex flex-wrap justify-center gap-3">
-            {searches.map((term) => (
-              <Link key={term} to="/" className="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-600 hover:bg-sky-100 hover:text-sky-600">
-                {term}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

@@ -14,3 +14,28 @@ body {
 #root {
   min-height: 100vh;
 }
+
+.led {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(125, 255, 161, 0.75);
+}
+
+.race-drift {
+  animation: race-drift 2.4s linear infinite;
+}
+
+@keyframes race-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 48px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .race-drift {
+    animation: none;
+  }
+}

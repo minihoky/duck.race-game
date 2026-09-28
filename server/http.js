@@ -14,6 +14,7 @@ import {
   SESSION_MS_PUBLIC,
 } from "./accounts.js";
 import { canPreviewMail, sendMail } from "./mail.js";
+import { handlePlatform } from "./platform.js";
 
 const hits = new Map();
 
@@ -42,28 +43,32 @@ function origin(req) {
   return `${proto}://${req.headers.host}`;
 }
 
-function readBody(req) {
+function readRaw(req, limit = 20_000) {
   return new Promise((resolve, reject) => {
     const chunks = [];
+    let size = 0;
     req.on("data", (chunk) => {
-      chunks.push(chunk);
-      if (chunks.reduce((sum, item) => sum + item.length, 0) > 20_000) {
+      size += chunk.length;
+      if (size > limit) {
         reject(new Error("Body too large"));
         req.destroy();
-      }
-    });
-    req.on("end", () => {
-      if (!chunks.length) {
-        resolve({});
         return;
       }
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-      } catch {
-        reject(new Error("Invalid JSON"));
-      }
+      chunks.push(chunk);
     });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
+  });
+}
+
+function readBody(req, limit = 20_000) {
+  return readRaw(req, limit).then((raw) => {
+    if (!raw.length) return {};
+    try {
+      return JSON.parse(raw.toString("utf8"));
+    } catch {
+      throw new Error("Invalid JSON");
+    }
   });
 }
 
@@ -96,6 +101,22 @@ async function deliver(req, { to, subject, text, link }) {
 
 export function authMiddleware(req, res, next) {
   const url = new URL(req.url, "http://localhost");
+  if (url.pathname.startsWith("/api/") && !url.pathname.startsWith("/api/auth/")) {
+    handlePlatform(req, res, url, { send, cookies, origin, readBody, readRaw, limited }).catch((error) => {
+      if (res.headersSent) return;
+      if (error.message === "Body too large") {
+        send(res, 413, { error: "That upload is too large." });
+        return;
+      }
+      if (error.message === "Invalid JSON") {
+        send(res, 400, { error: "The request could not be read." });
+        return;
+      }
+      console.error(error);
+      send(res, 500, { error: "The request could not be completed." });
+    });
+    return;
+  }
   if (!url.pathname.startsWith("/api/auth/")) {
     next();
     return;

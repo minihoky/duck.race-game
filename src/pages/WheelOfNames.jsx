@@ -250,7 +250,6 @@ export default function WheelOfNames() {
         items={[
           { title: "Duck Race Game", text: "Try our exciting Duck Race game for classrooms and events. Perfect for group activities and fun competitions!", to: "/", action: "Play Duck Race" },
           { title: "Countdown Clock", text: "Free online countdown clock with analog face, digital display, alarm sounds, and fullscreen mode.", to: "/countdown-clock", action: "Open Countdown Clock" },
-          { title: "Random Team Generator", text: "Need to create balanced teams? Our team generator helps you divide participants into fair and random groups." },
         ]}
       />
     </div>

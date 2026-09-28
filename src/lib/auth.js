@@ -49,3 +49,7 @@ export async function me() {
   const data = await response.json().catch(() => ({}));
   return data.user || null;
 }
+
+export function publishAccount(user) {
+  window.dispatchEvent(new CustomEvent("duck-account", { detail: user }));
+}

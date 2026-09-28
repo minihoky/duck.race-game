@@ -24,17 +24,15 @@ export function RelatedTools({ items }) {
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <div key={item.title} className="rounded-2xl bg-gray-50 p-6 hover:bg-sky-50">
-              <h3 className="mb-2 text-lg font-semibold text-gray-900">{item.title}</h3>
-              <p className="mb-4 text-sm leading-relaxed text-gray-600">{item.text}</p>
-              {item.to ? (
-                <Link className="inline-flex items-center gap-2 text-sm font-medium text-sky-500" to={item.to}>
-                  {item.action || "Try Now"}
-                  <Icon className="h-4 w-4">{icons.arrow}</Icon>
-                </Link>
-              ) : (
-                <span className="text-sm font-medium text-gray-400">Coming Soon</span>
-              )}
+            <div key={item.title} className="rounded-2xl bg-gray-50 p-6">
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                {item.to ? (
+                  <Link className="hover:text-sky-600" to={item.to}>{item.title}</Link>
+                ) : (
+                  item.title
+                )}
+              </h3>
+              <p className="text-sm leading-relaxed text-gray-600">{item.text}</p>
             </div>
           ))}
         </div>

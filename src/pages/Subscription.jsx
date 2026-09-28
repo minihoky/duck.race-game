@@ -5,45 +5,20 @@ export default function Subscription() {
   usePageTitle("Free Duck Race Game - Pricing");
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12">
-      <h1 className="mb-3 text-4xl font-bold">Unlock Premium</h1>
-      <p className="mb-10 text-lg text-gray-600">
-        Free to play, with a Premium upgrade for much larger races. Checkout stays on the original Duck Race site.
+    <div className="mx-auto max-w-3xl px-4 pb-16 pt-20">
+      <h1 className="mb-3 text-4xl font-bold">Official races use credits</h1>
+      <p className="mb-4 text-lg text-gray-600">
+        The free name picker on the home page stays open. An official race stores its result on the server, and that result can be replayed without using another credit.
       </p>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Plan
-          name="Free"
-          detail="No registration required"
-          points={["Races for groups from 2 to 100+ people", "Wheel of Names", "Countdown Clock", "Name lists saved on this device"]}
-        />
-        <Plan
-          name="Premium"
-          detail="Up to 50,000 ducks"
-          points={["Much larger classrooms and events", "Saved name lists for future races", "The same fair, random duck race"]}
-          highlighted
-        />
-      </div>
-      <p className="mt-8 text-sm text-gray-500">
-        Pricing and payment are handled by{" "}
-        <a className="text-sky-600 underline" href="https://duckrace-game.com/subscription" target="_blank" rel="noreferrer">
-          duckrace-game.com
-        </a>
-        . This React copy does not process payments. See the <Link className="text-sky-600 underline" to="/terms">Terms of Service</Link> for subscription rules.
-      </p>
-    </div>
-  );
-}
-
-function Plan({ name, detail, points, highlighted }) {
-  return (
-    <div className={`rounded-2xl border p-6 ${highlighted ? "border-sky-400 bg-sky-50" : "border-gray-100 bg-white"}`}>
-      <h2 className="text-2xl font-bold">{name}</h2>
-      <p className="mb-4 text-sky-600">{detail}</p>
-      <ul className="space-y-2 text-gray-700">
-        {points.map((point) => (
-          <li key={point}>• {point}</li>
-        ))}
+      <ul className="mb-8 space-y-2 text-gray-700">
+        <li>One credit is used when an official race begins.</li>
+        <li>A package of 10 credits covers 10 official races.</li>
+        <li>Credits stay inside Duck Race. They cannot be withdrawn, transferred, or refunded for cash.</li>
+        <li>Purchases are confirmed by the payment gateway. The provider is still being connected.</li>
       </ul>
+      <Link to="/credits" className="inline-block rounded-xl bg-sky-500 px-5 py-3 font-semibold text-white">
+        View credit packages
+      </Link>
     </div>
   );
 }

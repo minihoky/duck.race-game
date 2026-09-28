@@ -10,6 +10,12 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import VerifyEmail from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
+import OfficialRace from "./pages/OfficialRace";
+import History from "./pages/History";
+import Credits from "./pages/Credits";
+import Checkout from "./pages/Checkout";
+import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 
 export default function App() {
   return (
@@ -21,6 +27,13 @@ export default function App() {
         <Route path="/wheel-of-names" element={<WheelOfNames />} />
         <Route path="/countdown-clock" element={<CountdownClock />} />
         <Route path="/subscription" element={<Subscription />} />
+        <Route path="/race/:id" element={<OfficialRace />} />
+        <Route path="/race" element={<OfficialRace />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/credits" element={<Credits />} />
+        <Route path="/checkout/:paymentId" element={<Checkout />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/verify-email" element={<VerifyEmail />} />

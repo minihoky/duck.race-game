@@ -12,7 +12,7 @@ const RESET_MS = 60 * 60 * 1000;
 const SESSION_MS = 14 * 24 * 60 * 60 * 1000;
 
 let queue = Promise.resolve();
-let state = load();
+let state = ensureCollections(load());
 const usedVerify = new Map();
 
 function load() {
@@ -21,6 +21,31 @@ function load() {
   } catch {
     return { users: [], sessions: [] };
   }
+}
+
+function adminEmails() {
+  return String(process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function ensureCollections(data = state) {
+  if (!Array.isArray(data.users)) data.users = [];
+  if (!Array.isArray(data.sessions)) data.sessions = [];
+  if (!Array.isArray(data.ledger)) data.ledger = [];
+  if (!Array.isArray(data.payments)) data.payments = [];
+  if (!Array.isArray(data.races)) data.races = [];
+  if (!Array.isArray(data.sponsors)) data.sponsors = [];
+  for (const user of data.users) applyRole(user);
+  return data;
+}
+
+function applyRole(user) {
+  if (!user.role) user.role = "user";
+  if (!Number.isFinite(user.credits)) user.credits = 0;
+  if (adminEmails().includes(user.email)) user.role = "admin";
+  return user;
 }
 
 function persist() {
@@ -78,11 +103,14 @@ async function checkPassword(password, stored) {
 }
 
 function publicUser(user) {
+  applyRole(user);
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    verified: user.verified,
+    verified: Boolean(user.verified),
+    role: user.role,
+    credits: user.credits,
   };
 }
 
@@ -100,7 +128,11 @@ export function registerAccount({ name, email, password }) {
       id: randomBytes(12).toString("hex"),
       email,
       createdAt: Date.now(),
+      credits: 0,
+      role: "user",
     };
+    if (!Number.isFinite(record.credits)) record.credits = 0;
+    if (!record.role) record.role = "user";
     record.name = name;
     record.passwordHash = passwordHash;
     record.verified = false;
@@ -109,6 +141,7 @@ export function registerAccount({ name, email, password }) {
     record.resetTokenHash = "";
     record.resetExpires = 0;
     if (!existing) state.users.push(record);
+    applyRole(record);
     persist();
     return { status: 201, verifyToken: verify, email };
   });
@@ -147,6 +180,7 @@ export function loginAccount({ email, password }) {
     const matches = user ? await checkPassword(password, user.passwordHash) : false;
     if (!user || !matches) return { status: 401, error: "Email or password is incorrect." };
     if (!user.verified) return { status: 403, error: "Verify your email before signing in.", code: "unverified" };
+    applyRole(user);
     const session = token();
     state.sessions = state.sessions.filter((item) => item.expires > Date.now() && item.userId !== user.id);
     state.sessions.push({ tokenHash: digest(session), userId: user.id, expires: Date.now() + SESSION_MS });
@@ -164,12 +198,37 @@ export function logoutAccount(rawToken) {
   });
 }
 
-export function currentAccount(rawToken) {
+export function readSession(rawToken) {
+  ensureCollections();
   const hash = digest(String(rawToken || ""));
   const session = state.sessions.find((item) => item.tokenHash === hash && item.expires > Date.now());
   if (!session) return null;
   const user = state.users.find((item) => item.id === session.userId && item.verified);
+  if (!user) return null;
+  applyRole(user);
+  return user;
+}
+
+export function currentAccount(rawToken) {
+  const user = readSession(rawToken);
   return user ? publicUser(user) : null;
+}
+
+export function viewUser(user) {
+  return publicUser(user);
+}
+
+export function devAdminOpen() {
+  return process.env.NODE_ENV !== "production" && adminEmails().length === 0;
+}
+
+export function mutate(fn) {
+  return update(async () => {
+    ensureCollections();
+    const result = await fn(state);
+    if (!result || result.persist !== false) persist();
+    return result;
+  });
 }
 
 export function requestReset(email) {
