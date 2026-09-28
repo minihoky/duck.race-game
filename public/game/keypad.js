@@ -14,22 +14,9 @@
   ].join("");
   document.head.appendChild(style);
 
-  const keys = [
-    ["btn0", "0", "num"], ["btn1", "1", "num"], ["btn2", "2", "num"], ["btn3", "3", "num"], ["btn4", "4", "num"],
-    ["btn5", "5", "num"], ["btn6", "6", "num"], ["btn7", "7", "num"], ["btn8", "8", "num"], ["btn9", "9", "num"],
-    ["btnset", "Set", "set"], ["btnclear", "Clear", "clear"]
-  ];
   const pad = document.createElement("div");
   pad.id = "keypad";
   pad.hidden = true;
-  keys.forEach(function (spec) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = spec[2];
-    button.dataset.key = spec[0];
-    button.innerHTML = '<span class="shine"></span><span class="label">' + spec[1] + "</span>";
-    pad.appendChild(button);
-  });
   const editButton = document.createElement("button");
   editButton.type = "button";
   editButton.className = "num";
@@ -54,6 +41,103 @@
     node.dispatchEvent(new createjs.MouseEvent("click", true, false, 0, 0));
   });
 
+  function roundRect(ctx, x, y, w, h, r) {
+    const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  }
+
+  function drawKey(width, height, label, kind) {
+    const pixel = 4;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(width * pixel));
+    canvas.height = Math.max(1, Math.ceil(height * pixel));
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixel, pixel);
+    const colors = kind === "set" ? ["#ffe56a", "#ffc21a", "#f0a000"]
+      : kind === "clear" ? ["#f7f9fc", "#e4e9ef", "#cfd6df"]
+      : ["#c8f56a", "#8ee024", "#62c40e"];
+    const radius = height * 0.28;
+    const inset = Math.max(1.2, height * 0.04);
+    ctx.save();
+    ctx.shadowColor = "rgba(16,24,32,0.28)";
+    ctx.shadowBlur = height * 0.08;
+    ctx.shadowOffsetY = height * 0.06;
+    roundRect(ctx, inset, inset, width - inset * 2, height - inset * 2, radius);
+    const fill = ctx.createLinearGradient(0, 0, 0, height);
+    fill.addColorStop(0, colors[0]);
+    fill.addColorStop(0.46, colors[1]);
+    fill.addColorStop(1, colors[2]);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.lineWidth = Math.max(1.6, height * 0.065);
+    ctx.strokeStyle = "#1c2836";
+    ctx.stroke();
+    ctx.save();
+    roundRect(ctx, inset, inset, width - inset * 2, height - inset * 2, radius);
+    ctx.clip();
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.beginPath();
+    ctx.ellipse(width / 2, height * 0.28, width * 0.36, height * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#1a2836";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "800 " + Math.round(height * (kind === "num" ? 0.52 : 0.4)) + "px 'Trebuchet MS', 'Segoe UI', Arial, sans-serif";
+    ctx.fillText(label, width / 2, height * 0.54);
+    ctx.restore();
+    return canvas;
+  }
+
+  function paintCanvasKeys(oldWay) {
+    if (!oldWay || !window.createjs) return;
+    const specs = [
+      ["btn0", "0", "num"], ["btn1", "1", "num"], ["btn2", "2", "num"], ["btn3", "3", "num"], ["btn4", "4", "num"],
+      ["btn5", "5", "num"], ["btn6", "6", "num"], ["btn7", "7", "num"], ["btn8", "8", "num"], ["btn9", "9", "num"],
+      ["btnset", oldWay.txt_set && oldWay.txt_set.text ? String(oldWay.txt_set.text).trim() : "Set", "set"],
+      ["btnclear", oldWay.txt_clear && oldWay.txt_clear.text ? String(oldWay.txt_clear.text).trim() : "Clear", "clear"]
+    ];
+    if (oldWay.txt_set) oldWay.txt_set.visible = false;
+    if (oldWay.txt_clear) oldWay.txt_clear.visible = false;
+    specs.forEach(function (spec) {
+      const node = oldWay[spec[0]];
+      const bounds = node && node.nominalBounds;
+      if (!node || !bounds) return;
+      node.visible = true;
+      let gloss = null;
+      (node.children || []).forEach(function (kid) {
+        if (kid && kid.name === "glossKey") gloss = kid;
+        else if (kid) kid.visible = false;
+      });
+      if (!gloss || gloss._label !== spec[1]) {
+        if (gloss) node.removeChild(gloss);
+        const canvas = drawKey(bounds.width, bounds.height, spec[1], spec[2]);
+        gloss = new createjs.Bitmap(canvas);
+        gloss.name = "glossKey";
+        gloss.mouseEnabled = false;
+        gloss._label = spec[1];
+        gloss.x = bounds.x;
+        gloss.y = bounds.y;
+        gloss.scaleX = bounds.width / canvas.width;
+        gloss.scaleY = bounds.height / canvas.height;
+        node.addChild(gloss);
+      }
+      if (!node.hitArea) {
+        const hit = new createjs.Shape();
+        hit.graphics.beginFill("#000").drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        node.hitArea = hit;
+      }
+      if (node.cacheCanvas && node.uncache) node.uncache();
+    });
+  }
+
   function keyNode(name) {
     const settings = window.exportRoot && window.exportRoot.settings;
     if (name === "edit") {
@@ -63,18 +147,6 @@
     const timer = settings && settings.timer;
     const oldWay = timer && timer.oldWay;
     return oldWay && oldWay[name];
-  }
-
-  function liveLabel(node, fallback) {
-    let found = "";
-    function walk(current, depth) {
-      if (!current || depth > 5 || found) return;
-      if (typeof current.text === "string" && current.text.trim()) found = current.text.trim();
-      const children = current.children || [];
-      for (let i = 0; i < children.length; i++) walk(children[i], depth + 1);
-    }
-    walk(node, 0);
-    return found || fallback;
   }
 
   function screenBox(node) {
@@ -146,8 +218,9 @@
       if (clock) clock.hidden = true;
       if (species) species.style.visibility = "hidden";
     }
-    pad.hidden = !(showKeys || showEdit);
-    if (!showKeys && !showEdit) return;
+    if (showKeys) paintCanvasKeys(oldWay);
+    pad.hidden = !showEdit;
+    if (!showEdit) return;
     const stage = window.stage;
     const canvas = stage && stage.canvas;
     const host = pad.parentElement;
@@ -156,36 +229,16 @@
     const hostRect = host.getBoundingClientRect();
     const ox = canvasRect.left - hostRect.left;
     const oy = canvasRect.top - hostRect.top;
-    pad.querySelectorAll("button").forEach(function (button) {
-      if (button.dataset.key === "edit") {
-        button.hidden = !showEdit;
-        if (!showEdit) return;
-        const node = list.btn_editList;
-        if (node.visible !== false) node.visible = false;
-        const box = hideEditArt(list, screenBox(node));
-        if (!box) return;
-        placeButton(button, box, ox, oy);
-        button.style.borderRadius = Math.round((box.b - box.y) / 2) + "px";
-        const label = button.querySelector(".label");
-        const next = list.editList && list.editList.text ? String(list.editList.text).trim() : "Edit List";
-        if (next && next !== label.textContent) label.textContent = next;
-        return;
-      }
-      button.hidden = !showKeys;
-      if (!showKeys) return;
-      const node = oldWay[button.dataset.key];
-      if (node && node.visible !== false) {
-        node._keyVisible = true;
-        node.visible = false;
-      }
-      const box = node && screenBox(node);
-      if (!box) return;
-      placeButton(button, box, ox, oy);
-      const label = button.querySelector(".label");
-      const fallback = label.textContent;
-      const next = liveLabel(node, fallback);
-      if (next && next !== label.textContent) label.textContent = next;
-    });
+    editButton.hidden = false;
+    const node = list.btn_editList;
+    if (node.visible !== false) node.visible = false;
+    const box = hideEditArt(list, screenBox(node));
+    if (!box) return;
+    placeButton(editButton, box, ox, oy);
+    editButton.style.borderRadius = Math.round((box.b - box.y) / 2) + "px";
+    const label = editButton.querySelector(".label");
+    const next = list.editList && list.editList.text ? String(list.editList.text).trim() : "Edit List";
+    if (next && next !== label.textContent) label.textContent = next;
   }
 
   function hook(stage) {
