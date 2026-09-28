@@ -1154,6 +1154,66 @@
     if (active === "frog" && inRace && racing) hopFrog(bitmap, anchor, colourBounds ? colourBounds.height * 0.22 : 18);
     else if (active === "turtle" && inRace && racing) paddleTurtle(bitmap);
     else if (bitmap._plate && bitmap.image !== bitmap._plate) bitmap.image = bitmap._plate;
+    hideLaneNumber(body);
+    if (active === "frog") placeFrogName(body, bitmap);
+  }
+
+  function hideLaneNumber(body) {
+    let host = body;
+    for (let i = 0; host && i < 4; i += 1) {
+      const num = (host.children || []).find(function (kid) {
+        return kid && kid.name === "myNum";
+      });
+      if (num) num.visible = false;
+      host = host.parent;
+    }
+  }
+
+  function nameAnchor(image) {
+    if (image._nameAnchor) return image._nameAnchor;
+    const width = image.width;
+    const height = image.height;
+    const data = image.getContext("2d").getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    for (let y = 0; y < height; y += 2) {
+      for (let x = 0; x < width; x += 2) {
+        if (data[(y * width + x) * 4 + 3] < 24) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    const anchor = {
+      x: minX + Math.max(1, maxX - minX) * 0.83,
+      y: minY + Math.max(1, maxY - minY) * 0.95,
+    };
+    image._nameAnchor = anchor;
+    return anchor;
+  }
+
+  function placeFrogName(body, bitmap) {
+    const character = body.parent;
+    if (!character || !bitmap.image) return;
+    const bubble = (character.children || []).find(function (kid) {
+      return kid && kid.name === "no";
+    });
+    if (!bubble) return;
+    const anchor = nameAnchor(bitmap.image);
+    const scaleX = bitmap.scaleX || 1;
+    const scaleY = bitmap.scaleY || scaleX;
+    const seatX = body.x + bitmap.x + (anchor.x - bitmap.regX) * scaleX;
+    const seatY = body.y + bitmap.y + (anchor.y - bitmap.regY) * scaleY;
+    const bounds = bubble.nominalBounds || { x: 0, y: 0, width: 80, height: 64 };
+    const tail = (bubble.children || []).find(function (kid) {
+      return kid && !kid.name && kid.y > 15;
+    });
+    const tailX = tail ? tail.x + 8 : bounds.x + bounds.width * 0.5;
+    bubble.x = seatX - tailX;
+    bubble.y = seatY - (bounds.y + bounds.height);
   }
 
   let racing = false;
