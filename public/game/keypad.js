@@ -37,6 +37,9 @@
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     ctx.lineWidth = Math.max(1.6, height * 0.065);
     ctx.strokeStyle = "#1c2836";
     ctx.stroke();
@@ -51,22 +54,61 @@
     ctx.fillStyle = "#1a2836";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "800 " + Math.round(height * (kind === "num" ? 0.52 : 0.4)) + "px 'Trebuchet MS', 'Segoe UI', Arial, sans-serif";
-    ctx.fillText(label, width / 2, height * 0.54);
+    ctx.font = "800 " + Math.round(height * (kind === "num" ? 0.46 : 0.38)) + "px 'Trebuchet MS', 'Segoe UI', Arial, sans-serif";
+    ctx.fillText(label, width / 2, height * 0.56);
     ctx.restore();
     return canvas;
+  }
+
+  function muteArt(node) {
+    if (!node || node._mutedArt) {
+      if (node) {
+        node.visible = false;
+        node.alpha = 0;
+      }
+      return;
+    }
+    node._mutedArt = true;
+    node.visible = false;
+    node.alpha = 0;
+    node.mouseEnabled = false;
+    node.draw = function () { return true; };
+  }
+
+  function guardGloss(node) {
+    if (!node || node._glossGuard) return;
+    node._glossGuard = true;
+    if (typeof node._updateTimeline === "function") node._updateTimeline = function () {};
+    node.draw = function (ctx, ignoreCache) {
+      if (this.cacheCanvas && this.uncache) this.uncache();
+      const live = this.children;
+      if (live) {
+        for (let i = live.length - 1; i >= 0; i--) {
+          const kid = live[i];
+          if (!kid || kid.name === "glossKey") continue;
+          if (kid.cacheCanvas && kid.uncache) kid.uncache();
+          this.removeChildAt(i);
+        }
+      }
+      const gloss = this.getChildByName ? this.getChildByName("glossKey") : null;
+      if (gloss) {
+        gloss.visible = true;
+        gloss.alpha = 1;
+      }
+      return createjs.Container.prototype.draw.call(this, ctx, ignoreCache);
+    };
   }
 
   function paintCanvasKeys(oldWay) {
     if (!oldWay || !window.createjs) return;
     const specs = [
-      ["btn0", "0", "num"], ["btn1", "1", "num"], ["btn2", "2", "num"], ["btn3", "3", "num"], ["btn4", "4", "num"],
-      ["btn5", "5", "num"], ["btn6", "6", "num"], ["btn7", "7", "num"], ["btn8", "8", "num"], ["btn9", "9", "num"],
+      ["btn0", "", "num"], ["btn1", "", "num"], ["btn2", "", "num"], ["btn3", "", "num"], ["btn4", "", "num"],
+      ["btn5", "", "num"], ["btn6", "", "num"], ["btn7", "", "num"], ["btn8", "", "num"], ["btn9", "", "num"],
       ["btnset", oldWay.txt_set && oldWay.txt_set.text ? String(oldWay.txt_set.text).trim() : "Set", "set"],
       ["btnclear", oldWay.txt_clear && oldWay.txt_clear.text ? String(oldWay.txt_clear.text).trim() : "Clear", "clear"]
     ];
-    if (oldWay.txt_set) oldWay.txt_set.visible = false;
-    if (oldWay.txt_clear) oldWay.txt_clear.visible = false;
+    muteArt(oldWay.txt_set);
+    muteArt(oldWay.txt_clear);
     specs.forEach(function (spec) {
       const node = oldWay[spec[0]];
       const bounds = node && node.nominalBounds;
@@ -75,7 +117,7 @@
       let gloss = null;
       (node.children || []).forEach(function (kid) {
         if (kid && kid.name === "glossKey") gloss = kid;
-        else if (kid) kid.visible = false;
+        else if (kid) muteArt(kid);
       });
       if (!gloss || gloss._label !== spec[1]) {
         if (gloss) node.removeChild(gloss);
@@ -90,6 +132,7 @@
         gloss.scaleY = bounds.height / canvas.height;
         node.addChild(gloss);
       }
+      guardGloss(node);
       if (!node.hitArea) {
         const hit = new createjs.Shape();
         hit.graphics.beginFill("#000").drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
