@@ -2,8 +2,8 @@ export const navItems = [
   { to: "/", label: "Home", icon: "house" },
   { to: "/rooms", label: "My Rooms", icon: "grid" },
   { to: "/offline-mode", label: "Offline Mode", icon: "wifiOff", badge: "Hot", badgeClass: "bg-orange-500 text-white" },
-  { to: "/wheel-of-names", label: "Wheel of Names", icon: "wheel" },
-  { to: "/countdown-clock", label: "Countdown Clock", icon: "clock", badge: "New", badgeClass: "bg-violet-500 text-white" },
+  { to: "/wheel-of-names", label: "Wheel of Names", icon: "pointer" },
+  { to: "/countdown-clock", label: "Countdown Clock", icon: "clock", badge: "New", badgeClass: "bg-purple-500 text-white" },
   { to: "/subscription", label: "Unlock Premium", icon: "shield" },
 ];
 

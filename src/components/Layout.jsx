@@ -25,12 +25,10 @@ export default function Layout({ children }) {
   }
 
   return (
-    <div className="flex h-screen overflow-x-hidden bg-white">
-      <aside
-        className={`hidden shrink-0 border-r border-gray-100 bg-white md:flex md:flex-col ${collapsed ? "w-[72px]" : "w-64"}`}
-      >
+    <div className="flex h-screen overflow-hidden bg-white">
+      <aside className={`hidden shrink-0 flex-col border-r border-gray-100 bg-white md:flex ${collapsed ? "w-[72px]" : "w-64"}`}>
         <Brand collapsed={collapsed} />
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {navItems.map((item) => (
             <NavItem key={item.to} item={item} collapsed={collapsed} />
           ))}
@@ -48,18 +46,21 @@ export default function Layout({ children }) {
       </aside>
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-auto">
-        <button
-          type="button"
-          className="fixed left-3 top-3 z-40 rounded-lg bg-white/90 p-1.5 text-gray-600 shadow-sm md:hidden"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open menu"
-        >
-          <Icon className="h-5 w-5">{icons.menu}</Icon>
-        </button>
-        <div className="pointer-events-none fixed right-4 top-4 z-40 md:right-5 md:top-5">
+        <div className="pointer-events-none sticky top-0 z-30 flex items-center justify-between px-3 py-3 md:justify-end md:px-5">
+          <div className="pointer-events-auto flex items-center gap-2 md:hidden">
+            <button
+              type="button"
+              className="rounded-lg p-1.5 text-gray-500 hover:bg-white/80"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
+              <Icon className="h-5 w-5">{icons.menu}</Icon>
+            </button>
+            <Brand compact />
+          </div>
           <SignInButton user={user} onSignIn={() => setSignInOpen(true)} onSignOut={() => saveUser(null)} />
         </div>
-        <main className="flex-1 pb-16 md:pb-0">{children}</main>
+        <main className="-mt-16 flex-1 pb-16 md:pb-0">{children}</main>
         <Footer />
       </div>
 
@@ -90,8 +91,7 @@ export default function Layout({ children }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={() => setMobileOpen(false)} />
-          <nav className="absolute bottom-0 left-0 right-0 max-h-[80vh] space-y-1 overflow-auto rounded-t-2xl bg-white p-4">
-            <Brand />
+          <nav className="absolute bottom-0 left-0 right-0 space-y-1 rounded-t-2xl bg-white p-4">
             {navItems.map((item) => (
               <NavItem key={item.to} item={item} />
             ))}
@@ -105,16 +105,16 @@ export default function Layout({ children }) {
   );
 }
 
-function Brand({ collapsed = false }) {
+function Brand({ collapsed = false, compact = false }) {
   return (
-    <Link to="/" className={`flex items-center gap-2.5 px-4 py-4 ${collapsed ? "justify-center px-2" : ""}`}>
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100">
+    <Link to="/" className={`flex select-none items-center gap-2.5 ${compact ? "" : "px-4 py-4"}`}>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white shadow-sm">
         <DuckMark />
       </span>
       {!collapsed && (
-        <span className="min-w-0 leading-tight">
-          <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-500">Free to Play</span>
-          <span className="block text-[15px] font-bold tracking-tight text-gray-800">
+        <span className="flex flex-col justify-center leading-none">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-500">Free to Play</span>
+          <span className="mt-1 text-[15px] font-bold tracking-tight text-gray-800">
             Duck Race <span className="text-sky-500">Name Picker</span>
           </span>
         </span>
@@ -126,10 +126,10 @@ function Brand({ collapsed = false }) {
 function DuckMark() {
   return (
     <svg viewBox="0 0 32 32" className="h-8 w-8" aria-hidden="true">
-      <ellipse cx="15" cy="20" rx="9" ry="7" fill="#ffd23a" stroke="#161616" strokeWidth="1.4" />
-      <circle cx="22" cy="13" r="6" fill="#ffd23a" stroke="#161616" strokeWidth="1.4" />
-      <path d="M27 13h5l-5 2.2z" fill="#f08a14" stroke="#161616" strokeWidth="1.2" />
-      <circle cx="24" cy="12" r="1.1" fill="#161616" />
+      <ellipse cx="15" cy="20" rx="8" ry="6" fill="#ffd23a" />
+      <circle cx="22" cy="14" r="5.5" fill="#ffd23a" />
+      <path d="M26 13.5h5.2l-1.6 1.6 1.6 1.5H26" fill="#f08a14" />
+      <circle cx="23.5" cy="13" r="1" fill="#161616" />
     </svg>
   );
 }
@@ -139,9 +139,10 @@ function SignInButton({ user, onSignIn, onSignOut }) {
     return (
       <button
         type="button"
-        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-sky-600"
+        className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
         onClick={onSignOut}
       >
+        <Icon className="h-4 w-4">{icons.user}</Icon>
         {user.name}
       </button>
     );
@@ -149,10 +150,10 @@ function SignInButton({ user, onSignIn, onSignOut }) {
   return (
     <button
       type="button"
-      className="pointer-events-auto inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-sky-600"
+      className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
       onClick={onSignIn}
     >
-      <Icon className="h-4 w-4">{icons.userPlus}</Icon>
+      <Icon className="h-4 w-4">{icons.user}</Icon>
       Sign in
     </button>
   );
@@ -165,15 +166,15 @@ function NavItem({ item, collapsed = false }) {
       end={item.to === "/"}
       className={({ isActive }) =>
         `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium ${
-          isActive ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-        } ${collapsed ? "justify-center px-2" : ""}`
+          isActive ? "bg-sky-50 text-sky-500" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        }`
       }
       title={item.label}
     >
       <Icon className="h-4 w-4 shrink-0">{icons[item.icon]}</Icon>
       {!collapsed && <span className="truncate">{item.label}</span>}
       {!collapsed && item.badge && (
-        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${item.badgeClass}`}>{item.badge}</span>
+        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs font-medium ${item.badgeClass}`}>{item.badge}</span>
       )}
     </NavLink>
   );
