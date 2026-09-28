@@ -25,75 +25,42 @@ export default function Layout({ children }) {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-x-hidden bg-white">
-      <header className="z-40 flex h-[60px] items-center justify-between bg-white px-3 shadow-sm md:px-5">
-        <div className="flex items-center gap-1.5">
+    <div className="flex h-screen overflow-x-hidden bg-white">
+      <aside
+        className={`hidden shrink-0 border-r border-gray-100 bg-white md:flex md:flex-col ${collapsed ? "w-[72px]" : "w-64"}`}
+      >
+        <Brand collapsed={collapsed} />
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+          {navItems.map((item) => (
+            <NavItem key={item.to} item={item} collapsed={collapsed} />
+          ))}
+        </nav>
+        <div className="border-t border-gray-100 p-2">
           <button
             type="button"
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-sky-500/10 hover:text-sky-500 md:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-50"
+            onClick={() => setCollapsed((value) => !value)}
           >
-            <Icon className="h-5 w-5">{icons.menu}</Icon>
+            <Icon className="h-4 w-4 shrink-0">{icons.close}</Icon>
+            {!collapsed && <span>Collapse</span>}
           </button>
-          <Link to="/" className="group flex select-none items-center gap-2.5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <img src="/logo.webp" alt="Duckrace Logo" className="h-8 w-8 object-contain" />
-            </div>
-            <div className="hidden flex-col justify-center gap-0.5 leading-none sm:flex">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-sky-500">Free to Play</span>
-              <span className="text-[15px] font-bold tracking-tight text-gray-800">
-                Duck Race <span className="text-sky-500">Name Picker</span>
-              </span>
-            </div>
-            <span className="text-[15px] font-bold tracking-tight text-gray-800 sm:hidden">Duck Race</span>
-          </Link>
         </div>
-        {user ? (
-          <button
-            type="button"
-            className="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-600"
-            onClick={() => saveUser(null)}
-          >
-            {user.name}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-            onClick={() => setSignInOpen(true)}
-          >
-            <Icon className="h-4 w-4">{icons.login}</Icon>
-            Sign in
-          </button>
-        )}
-      </header>
+      </aside>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside
-          className={`hidden border-r border-gray-100 md:flex md:flex-col ${collapsed ? "w-16" : "w-64"}`}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-auto">
+        <button
+          type="button"
+          className="fixed left-3 top-3 z-40 rounded-lg bg-white/90 p-1.5 text-gray-600 shadow-sm md:hidden"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
         >
-          <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-            {navItems.map((item) => (
-              <NavItem key={item.to} item={item} collapsed={collapsed} />
-            ))}
-          </nav>
-          <div className="border-t border-gray-100 p-2">
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
-              onClick={() => setCollapsed((value) => !value)}
-            >
-              <Icon className="h-4 w-4">{icons.close}</Icon>
-              {!collapsed && <span>Collapse</span>}
-            </button>
-          </div>
-        </aside>
-
-        <div className="flex flex-1 flex-col overflow-auto">
-          <main className="flex-1 pb-16 md:pb-0">{children}</main>
-          <Footer />
+          <Icon className="h-5 w-5">{icons.menu}</Icon>
+        </button>
+        <div className="pointer-events-none fixed right-4 top-4 z-40 md:right-5 md:top-5">
+          <SignInButton user={user} onSignIn={() => setSignInOpen(true)} onSignOut={() => saveUser(null)} />
         </div>
+        <main className="flex-1 pb-16 md:pb-0">{children}</main>
+        <Footer />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-10 flex h-14 items-center justify-around border-t border-gray-200 bg-white md:hidden">
@@ -123,7 +90,8 @@ export default function Layout({ children }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={() => setMobileOpen(false)} />
-          <nav className="absolute bottom-0 left-0 right-0 space-y-1 rounded-t-2xl bg-white p-4">
+          <nav className="absolute bottom-0 left-0 right-0 max-h-[80vh] space-y-1 overflow-auto rounded-t-2xl bg-white p-4">
+            <Brand />
             {navItems.map((item) => (
               <NavItem key={item.to} item={item} />
             ))}
@@ -137,22 +105,75 @@ export default function Layout({ children }) {
   );
 }
 
+function Brand({ collapsed = false }) {
+  return (
+    <Link to="/" className={`flex items-center gap-2.5 px-4 py-4 ${collapsed ? "justify-center px-2" : ""}`}>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100">
+        <DuckMark />
+      </span>
+      {!collapsed && (
+        <span className="min-w-0 leading-tight">
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-500">Free to Play</span>
+          <span className="block text-[15px] font-bold tracking-tight text-gray-800">
+            Duck Race <span className="text-sky-500">Name Picker</span>
+          </span>
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function DuckMark() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-8 w-8" aria-hidden="true">
+      <ellipse cx="15" cy="20" rx="9" ry="7" fill="#ffd23a" stroke="#161616" strokeWidth="1.4" />
+      <circle cx="22" cy="13" r="6" fill="#ffd23a" stroke="#161616" strokeWidth="1.4" />
+      <path d="M27 13h5l-5 2.2z" fill="#f08a14" stroke="#161616" strokeWidth="1.2" />
+      <circle cx="24" cy="12" r="1.1" fill="#161616" />
+    </svg>
+  );
+}
+
+function SignInButton({ user, onSignIn, onSignOut }) {
+  if (user) {
+    return (
+      <button
+        type="button"
+        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-sky-600"
+        onClick={onSignOut}
+      >
+        {user.name}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="pointer-events-auto inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-sky-600"
+      onClick={onSignIn}
+    >
+      <Icon className="h-4 w-4">{icons.userPlus}</Icon>
+      Sign in
+    </button>
+  );
+}
+
 function NavItem({ item, collapsed = false }) {
   return (
     <NavLink
       to={item.to}
       end={item.to === "/"}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium ${
-          isActive ? "bg-sky-50 text-sky-500" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-        }`
+        `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium ${
+          isActive ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+        } ${collapsed ? "justify-center px-2" : ""}`
       }
       title={item.label}
     >
       <Icon className="h-4 w-4 shrink-0">{icons[item.icon]}</Icon>
       {!collapsed && <span className="truncate">{item.label}</span>}
       {!collapsed && item.badge && (
-        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs font-medium ${item.badgeClass}`}>{item.badge}</span>
+        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${item.badgeClass}`}>{item.badge}</span>
       )}
     </NavLink>
   );

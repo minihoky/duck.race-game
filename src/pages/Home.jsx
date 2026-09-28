@@ -32,7 +32,7 @@ export default function Home() {
           <span className="font-semibold">{room.title}:</span> {room.names.join(", ")}
         </div>
       )}
-      <div id="game" className="relative p-1 md:p-6" style={{ height: "calc(100vh - 140px)" }}>
+      <div id="game" className="relative p-1 md:p-4" style={{ height: "100dvh" }}>
         <iframe
           title="duck race timers game"
           src="/game/index.html"
