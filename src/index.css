@@ -6,9 +6,9 @@ html {
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  background: #fff;
-  color: #111827;
+  font-family: "Sora", "Segoe UI", system-ui, sans-serif;
+  background: #070d16;
+  color: #e8eef6;
 }
 
 #root {
@@ -38,4 +38,173 @@ body {
   .race-drift {
     animation: none;
   }
+}
+
+/* Pages and chrome. The home race and the name wheel draw their own canvases. */
+.arena {
+  background:
+    radial-gradient(900px 420px at 100% -10%, rgba(56, 189, 248, 0.16), transparent 55%),
+    radial-gradient(720px 380px at -10% 8%, rgba(214, 178, 94, 0.14), transparent 50%),
+    #070d16;
+  color: #e8eef6;
+  color-scheme: dark;
+  scrollbar-color: rgba(214, 178, 94, 0.45) transparent;
+}
+
+.arena ::selection {
+  background: rgba(56, 189, 248, 0.35);
+  color: #fff;
+}
+
+.arena h1,
+.arena h2,
+.arena h3 {
+  letter-spacing: -0.03em;
+}
+
+.arena .bg-white,
+.arena .bg-gray-50,
+.arena .bg-slate-50 {
+  background-color: rgba(18, 28, 46, 0.94);
+  color: #e8eef6;
+}
+
+.arena :is(.rounded-xl, .rounded-2xl, .rounded-3xl):is(.bg-white, .bg-gray-50, .bg-slate-50) {
+  box-shadow: inset 0 0 0 1px rgba(214, 178, 94, 0.2), 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.arena section:is(.bg-white, .bg-gray-50),
+.arena > footer.bg-white {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.arena .bg-gray-100,
+.arena button.bg-white,
+.arena .bg-slate-50 {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #f4f7fb;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.arena thead.bg-gray-50,
+.arena tr.bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+.arena .bg-sky-50 {
+  background-color: rgba(14, 165, 233, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.22);
+}
+
+.arena .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.18);
+  color: #7dd3fc;
+}
+
+.arena .bg-amber-50,
+.arena .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(252, 211, 77, 0.28);
+}
+
+.arena .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.16);
+}
+
+.arena .bg-gradient-to-r {
+  background-image: linear-gradient(90deg, rgba(14, 165, 233, 0.16), rgba(214, 178, 94, 0.14));
+}
+
+.arena :is(.border-gray-100, .border-gray-200, .border-slate-200, .border-sky-100) {
+  border-color: rgba(186, 214, 255, 0.16);
+}
+
+.arena :is(.text-gray-900, .text-gray-800) {
+  color: #f4f7fb;
+}
+
+.arena :is(.text-gray-700, .text-gray-600) {
+  color: #c5d0de;
+}
+
+.arena :is(.text-gray-500, .text-gray-400) {
+  color: #8ea0b8;
+}
+
+.arena :is(.text-sky-950, .text-sky-800, .text-sky-700) {
+  color: #dff6ff;
+}
+
+.arena :is(.text-sky-600, .text-sky-500) {
+  color: #7dd3fc;
+}
+
+.arena :is(.text-amber-800, .text-amber-950) {
+  color: #fcd34d;
+}
+
+.arena :is(.text-emerald-700, .text-emerald-800) {
+  color: #6ee7b7;
+}
+
+.arena .text-red-600 {
+  color: #ffb4b4;
+}
+
+.arena .hover\:bg-gray-50:hover,
+.arena .hover\:bg-sky-50:hover {
+  background-color: rgba(56, 189, 248, 0.14);
+}
+
+.arena .hover\:text-sky-500:hover,
+.arena .hover\:text-sky-600:hover {
+  color: #dff6ff;
+}
+
+.arena .bg-sky-500 {
+  background-color: #0ea5e9;
+  background-image: linear-gradient(180deg, #5ad4ff 0%, #0284c7 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 10px 24px rgba(14, 165, 233, 0.28);
+}
+
+.arena .bg-sky-500:hover {
+  filter: brightness(1.06);
+}
+
+.arena input:not([type="checkbox"]):not([type="file"]):not([type="radio"]),
+.arena textarea,
+.arena select {
+  background-color: #0c1522;
+  color: #f4f7fb;
+  border-color: rgba(186, 214, 255, 0.18);
+}
+
+.arena input::placeholder,
+.arena textarea::placeholder {
+  color: #8ea0b8;
+}
+
+.arena input:focus,
+.arena textarea:focus,
+.arena select:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.45);
+  outline-offset: 1px;
+}
+
+.arena input[type="checkbox"] {
+  accent-color: #38bdf8;
+}
+
+.arena iframe,
+.arena canvas {
+  filter: none;
+}
+
+.game-bezel {
+  border-radius: 1rem;
+  border: 1px solid rgba(214, 178, 94, 0.5);
+  background: #071018;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }

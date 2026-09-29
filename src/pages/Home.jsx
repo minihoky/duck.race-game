@@ -27,7 +27,7 @@ export default function Home() {
         <iframe
           title="duck race timers game"
           src="/game/index.html"
-          className="h-full w-full rounded-xl border border-gray-100 bg-sky-50"
+          className="game-bezel h-full w-full"
         />
       </div>
 

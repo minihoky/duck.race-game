@@ -137,8 +137,8 @@ export default function CountdownClock() {
 
   return (
     <div>
-      <div ref={panelRef} className="bg-sky-50 px-4 py-10">
-        <div className="mx-auto flex max-w-xl flex-col items-center">
+      <div ref={panelRef} className="px-4 py-10">
+        <div className="mx-auto flex max-w-xl flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-8">
           <div className="mb-4 flex w-full justify-end">
             <button type="button" className="rounded-lg bg-white px-3 py-2 text-sm font-semibold" onClick={toggleFullscreen}>
               Fullscreen
@@ -151,15 +151,15 @@ export default function CountdownClock() {
               cy="60"
               r="52"
               fill="none"
-              stroke="#0ea5e9"
+              stroke="#1e4b7a"
               strokeWidth="8"
               strokeDasharray={`${2 * Math.PI * 52}`}
               strokeDashoffset={`${2 * Math.PI * 52 * (1 - progress)}`}
               strokeLinecap="round"
               transform="rotate(-90 60 60)"
             />
-            <line x1="60" y1="60" x2="60" y2="28" stroke="#0ea5e9" strokeWidth="3" transform={`rotate(${(1 - progress) * 360} 60 60)`} />
-            <circle cx="60" cy="60" r="3" fill="#0ea5e9" />
+            <line x1="60" y1="60" x2="60" y2="28" stroke="#1e4b7a" strokeWidth="3" transform={`rotate(${(1 - progress) * 360} 60 60)`} />
+            <circle cx="60" cy="60" r="3" fill="#1e4b7a" />
           </svg>
           <div className="flex items-center gap-2 font-mono text-6xl font-bold text-gray-900">
             <button type="button" onClick={() => editPart("h")}>{pad(hours)}</button>
@@ -172,7 +172,7 @@ export default function CountdownClock() {
           <p className="text-sm text-gray-500">Click hours, minutes, or seconds to edit</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             {PRESETS.map(([label, value]) => (
-              <button key={label} type="button" className="rounded-full bg-white px-3 py-1 text-sm" onClick={() => applyDuration(value)}>
+              <button key={label} type="button" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-sm" onClick={() => applyDuration(value)}>
                 {label}
               </button>
             ))}

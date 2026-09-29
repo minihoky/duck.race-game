@@ -47,8 +47,8 @@ export default function Layout({ children }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <aside className="relative hidden w-72 shrink-0 flex-col overflow-hidden bg-[#0b1220] md:flex">
+    <div className="flex h-screen overflow-hidden bg-[#070d16]">
+      <aside className="relative hidden w-72 shrink-0 flex-col overflow-hidden border-r border-[#d6b25e]/20 bg-[#070d16] md:flex">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-sky-400/25 to-transparent" />
         <Brand onDark />
         <nav className="relative flex flex-1 flex-col gap-1.5 px-4 py-3">
@@ -59,12 +59,12 @@ export default function Layout({ children }) {
         </nav>
       </aside>
 
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-auto">
+      <div className="arena relative flex min-w-0 flex-1 flex-col overflow-auto">
         <div className="pointer-events-none sticky top-0 z-30 flex items-center justify-between px-3 py-3 md:justify-end md:px-5">
           <div className="pointer-events-auto flex items-center gap-2 md:hidden">
             <button
               type="button"
-              className="rounded-lg p-1.5 text-gray-500 hover:bg-white/80"
+              className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10"
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
             >
@@ -78,14 +78,14 @@ export default function Layout({ children }) {
         <Footer />
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-10 flex h-14 items-center justify-around border-t border-gray-200 bg-white md:hidden">
-        <Link to="/" className="flex h-full w-full flex-col items-center justify-center text-gray-800">
+      <div className="fixed bottom-0 left-0 right-0 z-10 flex h-14 items-center justify-around border-t border-[#d6b25e]/20 bg-[#070d16] md:hidden">
+        <Link to="/" className="flex h-full w-full flex-col items-center justify-center text-slate-200">
           <Icon className="h-5 w-5">{icons.house}</Icon>
           <span className="mt-1 text-xs">Home</span>
         </Link>
         <button
           type="button"
-          className="flex h-full w-full flex-col items-center justify-center text-gray-800"
+          className="flex h-full w-full flex-col items-center justify-center text-slate-200"
           onClick={() => setMobileOpen(true)}
         >
           <Icon className="h-5 w-5">{icons.menu}</Icon>
@@ -96,7 +96,7 @@ export default function Layout({ children }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={() => setMobileOpen(false)} />
-          <nav className="absolute bottom-0 left-0 right-0 space-y-1.5 rounded-t-3xl bg-[#0b1220] p-4 pb-6 shadow-2xl">
+          <nav className="absolute bottom-0 left-0 right-0 space-y-1.5 rounded-t-3xl border-t border-[#d6b25e]/30 bg-[#070d16] p-4 pb-6 shadow-2xl">
             <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Menu</p>
             {navItems.map((item) => (
               <NavItem key={item.to} item={item} />
@@ -146,19 +146,19 @@ function SignInButton({ user, onSignIn, onSignOut }) {
       <div className="pointer-events-auto relative">
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
+          className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md"
           onClick={() => setOpen((value) => !value)}
         >
           <Icon className="h-4 w-4">{icons.user}</Icon>
           {user.name}
         </button>
         {open && (
-          <div className="absolute right-0 mt-2 w-64 rounded-xl border border-gray-100 bg-white p-3 text-sm shadow-lg">
-            <p className="truncate text-gray-500">{user.email}</p>
-            <p className="mt-1 font-semibold text-gray-800">{user.credits ?? 0} credits</p>
+          <div className="absolute right-0 mt-2 w-64 rounded-xl border border-[#d6b25e]/25 bg-[#121b2c] p-3 text-sm text-slate-100 shadow-xl">
+            <p className="truncate text-slate-400">{user.email}</p>
+            <p className="mt-1 font-semibold text-white">{user.credits ?? 0} credits</p>
             <button
               type="button"
-              className="mt-2 w-full rounded-lg px-2 py-1.5 text-left font-semibold text-gray-800 hover:bg-gray-50"
+              className="mt-2 w-full rounded-lg px-2 py-1.5 text-left font-semibold text-slate-100 hover:bg-white/10"
               onClick={() => {
                 setOpen(false);
                 onSignOut();
@@ -174,7 +174,7 @@ function SignInButton({ user, onSignIn, onSignOut }) {
   return (
     <button
       type="button"
-      className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-600"
+      className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md"
       onClick={onSignIn}
     >
       <Icon className="h-4 w-4">{icons.user}</Icon>
@@ -213,37 +213,37 @@ function NavItem({ item }) {
 
 function Footer() {
   return (
-    <footer className="border-t-2 border-gray-200 bg-white pb-16 md:pb-0">
+    <footer className="border-t border-[#d6b25e]/20 bg-transparent pb-16 md:pb-0">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-10 sm:grid-cols-2">
         <div>
           <div className="mb-4 flex items-center gap-3">
             <img src="/logo.webp" alt="Duck Race" className="h-7 w-7 object-contain" />
-            <span className="text-lg font-bold text-gray-900">
-              Duck Race <span className="text-sky-500">Name Picker</span>
+            <span className="text-lg font-bold text-white">
+              Duck Race <span className="text-sky-300">Name Picker</span>
             </span>
           </div>
-          <p className="max-w-sm text-sm leading-relaxed text-gray-500">
+          <p className="max-w-sm text-sm leading-relaxed text-slate-400">
             The ultimate free-to-play duck race name picker. Create rooms, spin wheels, and pick winners with style. Fun, fast, and fair random selections for everyone.
           </p>
         </div>
         <div>
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-900">Quick Links</h3>
-          <ul className="space-y-2.5 text-sm text-gray-500">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-200">Quick Links</h3>
+          <ul className="space-y-2.5 text-sm text-slate-400">
             {navItems.map((item) => (
               <li key={item.to}>
-                <Link className="hover:text-sky-500" to={item.to}>{item.label}</Link>
+                <Link className="hover:text-sky-300" to={item.to}>{item.label}</Link>
               </li>
             ))}
           </ul>
         </div>
       </div>
-      <div className="border-t border-gray-100">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-gray-400 sm:flex-row">
+      <div className="border-t border-[#d6b25e]/15">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-slate-500 sm:flex-row">
           <p>© 2026 Duck Race Game Dot Com. All rights reserved.</p>
           <p className="flex gap-3">
-            <Link className="hover:text-sky-500" to="/terms">Terms</Link>
-            <Link className="hover:text-sky-500" to="/privacy">Privacy</Link>
-            <a className="hover:text-sky-500" href={`mailto:${supportEmail}`}>Support</a>
+            <Link className="hover:text-sky-300" to="/terms">Terms</Link>
+            <Link className="hover:text-sky-300" to="/privacy">Privacy</Link>
+            <a className="hover:text-sky-300" href={`mailto:${supportEmail}`}>Support</a>
           </p>
         </div>
       </div>

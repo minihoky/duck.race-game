@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { forgotPassword, login, register, resend } from "../lib/auth";
 
-const inputClass = "w-full rounded-xl border border-gray-200 px-3 py-2 text-sm";
+const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 
 export default function AuthDialog({ onClose, onSignedIn }) {
   const [mode, setMode] = useState("signin");
@@ -92,9 +92,9 @@ export default function AuthDialog({ onClose, onSignedIn }) {
   }[mode];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button className="absolute inset-0 bg-black/40" aria-label="Close" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="arena fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4">
+      <button className="absolute inset-0 bg-black/70" aria-label="Close" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d6b25e]/25 bg-[#121b2c] p-6 text-slate-100 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">{title}</h2>
           <button type="button" className="text-sm text-gray-500" onClick={onClose}>

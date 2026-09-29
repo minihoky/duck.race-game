@@ -4,7 +4,7 @@ export default function OfflineMode() {
   usePageTitle("Offline Mode - Duck Race Game");
 
   return (
-    <article className="mx-auto max-w-3xl px-4 py-12">
+    <article className="mx-auto my-8 max-w-3xl rounded-2xl border border-slate-200 bg-white px-6 py-10 sm:px-10">
       <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-sky-500">PWA Support</p>
       <h1 className="mb-4 text-4xl font-bold">Offline Mode</h1>
       <p className="mb-8 text-lg text-gray-600">Play Duck Race anytime, anywhere — even without an internet connection.</p>
