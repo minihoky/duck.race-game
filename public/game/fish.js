@@ -1799,7 +1799,10 @@
     if (!speciesBar || !speciesBitmap || !speciesBitmap.image) return;
     if (!speciesBar.parent) window.exportRoot.addChild(speciesBar);
     speciesBar.visible = show;
-    if (!show) return;
+    if (!show) {
+      if (habitatBar) habitatBar.visible = false;
+      return;
+    }
     const stage = window.stage;
     const sx = stage.scaleX || 1;
     const sy = stage.scaleY || 1;
@@ -1819,6 +1822,125 @@
     speciesBar.x = top.x + ((bottom.x - top.x) - w) / 2;
     speciesBar.y = bottom.y - h - (8 * ratio / sy);
     speciesBar.parent.setChildIndex(speciesBar, speciesBar.parent.numChildren - 1);
+    placeHabitat(show, top, bottom, sx, sy, ratio);
+  }
+
+  let habitatBar = null;
+  let habitatBitmap = null;
+  let habitatSlots = [];
+  let habitatStamp = "";
+
+  function paintHabitatBar() {
+    const api = window.duckHabitats;
+    if (!api || !window.createjs || !window.exportRoot) return;
+    const kinds = api.order;
+    const pixel = 2;
+    const cardW = 142;
+    const cardH = 88;
+    const gap = 7;
+    const pad = 8;
+    const barW = pad * 2 + cardW;
+    const barH = pad * 2 + kinds.length * cardH + (kinds.length - 1) * gap;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(barW * pixel);
+    canvas.height = Math.ceil(barH * pixel);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixel, pixel);
+    ctx.save();
+    ctx.shadowColor = "rgba(24, 58, 82, 0.22)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    roundBar(ctx, 1, 1, barW - 2, barH - 2, 20);
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
+    ctx.fill();
+    ctx.restore();
+    roundBar(ctx, 1, 1, barW - 2, barH - 2, 20);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(186,214,232,0.95)";
+    ctx.stroke();
+    habitatSlots = [];
+    kinds.forEach(function (kind, index) {
+      const x = pad;
+      const y = pad + index * (cardH + gap);
+      const selected = kind === api.current();
+      roundBar(ctx, x, y, cardW, cardH, 14);
+      ctx.fillStyle = selected ? "#e7f3ff" : "#f8fbfe";
+      ctx.fill();
+      ctx.save();
+      roundBar(ctx, x + 6, y + 6, cardW - 12, 48, 9);
+      ctx.clip();
+      const thumb = document.createElement("canvas");
+      thumb.width = cardW - 12;
+      thumb.height = 48;
+      api.paint(thumb.getContext("2d"), thumb.width, thumb.height, kind);
+      ctx.drawImage(thumb, x + 6, y + 6, cardW - 12, 48);
+      ctx.restore();
+      ctx.strokeStyle = selected ? "#2f86c4" : "rgba(186,214,232,0.9)";
+      ctx.lineWidth = selected ? 2.5 : 1;
+      roundBar(ctx, x, y, cardW, cardH, 14);
+      ctx.stroke();
+      ctx.fillStyle = "#1f3d57";
+      ctx.font = "700 14px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(api.labels[kind], x + cardW / 2, y + 66);
+      ctx.fillStyle = "#6d8798";
+      ctx.font = "11px 'Segoe UI', Arial, sans-serif";
+      ctx.fillText(api.suits[kind], x + cardW / 2, y + 80);
+      habitatSlots.push({ kind: kind, x: x * pixel, y: y * pixel, w: cardW * pixel, h: cardH * pixel });
+    });
+    if (!habitatBar) {
+      habitatBar = new createjs.Container();
+      habitatBar.name = "habitatBar";
+      habitatBar.cursor = "pointer";
+      habitatBar.mouseChildren = false;
+      habitatBitmap = new createjs.Bitmap(canvas);
+      habitatBar.addChild(habitatBitmap);
+      habitatBar.on("mousedown", function (evt) {
+        if (!habitatBitmap || !window.duckHabitats) return;
+        const local = habitatBitmap.globalToLocal(evt.stageX, evt.stageY);
+        const slot = habitatSlots.find(function (item) {
+          return local.x >= item.x && local.x < item.x + item.w && local.y >= item.y && local.y < item.y + item.h;
+        });
+        if (slot) window.duckHabitats.select(slot.kind);
+      });
+      window.exportRoot.addChild(habitatBar);
+    } else {
+      habitatBitmap.image = canvas;
+      if (habitatBitmap.sourceRect) habitatBitmap.sourceRect = null;
+    }
+    habitatBar._layoutW = barW;
+    habitatBar._layoutH = barH;
+    habitatStamp = api.current();
+  }
+
+  function placeHabitat(show, top, bottom, sx, sy, ratio) {
+    const api = window.duckHabitats;
+    if (!api) return;
+    if (!show) {
+      if (habitatBar) habitatBar.visible = false;
+      return;
+    }
+    if (!habitatBar || habitatStamp !== api.current()) paintHabitatBar();
+    if (!habitatBar || !habitatBitmap || !habitatBitmap.image || !speciesBar) return;
+    if (!habitatBar.parent) window.exportRoot.addChild(habitatBar);
+    habitatBar.visible = true;
+    const pixel = 2;
+    const marginX = 14 * ratio / sx;
+    const marginY = 12 * ratio / sy;
+    const viewW = bottom.x - top.x;
+    const bandTop = top.y + marginY;
+    const bandH = Math.max(80, speciesBar.y - marginY - bandTop);
+    const maxW = viewW * 0.145 - marginX;
+    let fit = Math.min(1, (maxW * sx) / (habitatBar._layoutW * ratio), (bandH * sy) / (habitatBar._layoutH * ratio));
+    if (!Number.isFinite(fit) || fit <= 0) fit = 1;
+    habitatBitmap.scaleX = ratio * fit / (pixel * sx);
+    habitatBitmap.scaleY = ratio * fit / (pixel * sy);
+    const w = habitatBar._layoutW * ratio * fit / sx;
+    const h = habitatBar._layoutH * ratio * fit / sy;
+    habitatBar.x = bottom.x - w - marginX;
+    habitatBar.y = bandTop + Math.max(0, (bandH - h) / 2);
+    habitatBar.parent.setChildIndex(habitatBar, habitatBar.parent.numChildren - 1);
   }
 
   function countRaceBodies(node) {
@@ -1964,6 +2086,7 @@
     if (next === species) return;
     species = next;
     localStorage.setItem(SPECIES_KEY, species);
+    if (window.duckHabitats) window.duckHabitats.select(window.duckHabitats.forSpecies(species));
     if (species === "duck" && window.exportRoot) restore(window.exportRoot);
     if (window.stage) window.stage.update();
     syncToggle();
