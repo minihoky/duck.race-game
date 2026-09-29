@@ -48,9 +48,11 @@ export default function Layout({ children }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-gray-100 bg-white md:flex">
-        <Brand />
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <aside className="relative hidden w-72 shrink-0 flex-col overflow-hidden bg-[#0b1220] md:flex">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-sky-400/25 to-transparent" />
+        <Brand onDark />
+        <nav className="relative flex flex-1 flex-col gap-1.5 px-4 py-3">
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Menu</p>
           {navItems.map((item) => (
             <NavItem key={item.to} item={item} />
           ))}
@@ -94,7 +96,8 @@ export default function Layout({ children }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={() => setMobileOpen(false)} />
-          <nav className="absolute bottom-0 left-0 right-0 space-y-1 rounded-t-2xl bg-white p-4">
+          <nav className="absolute bottom-0 left-0 right-0 space-y-1.5 rounded-t-3xl bg-[#0b1220] p-4 pb-6 shadow-2xl">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Menu</p>
             {navItems.map((item) => (
               <NavItem key={item.to} item={item} />
             ))}
@@ -107,17 +110,17 @@ export default function Layout({ children }) {
   );
 }
 
-function Brand({ collapsed = false, compact = false }) {
+function Brand({ compact = false, onDark = false }) {
   return (
-    <Link to="/" className={`flex select-none items-center gap-2.5 ${compact ? "" : "px-4 py-4"}`}>
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white shadow-sm">
+    <Link to="/" className={`relative flex select-none items-center gap-3 ${compact ? "" : "px-5 pb-3 pt-6"}`}>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white ${onDark ? "shadow-lg shadow-black/30" : "border border-gray-100 shadow-sm"}`}>
         <DuckMark />
       </span>
-      {!collapsed && (
+      {!compact && (
         <span className="flex flex-col justify-center leading-none">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-500">Free to Play</span>
-          <span className="mt-1 text-[15px] font-bold tracking-tight text-gray-800">
-            Duck Race <span className="text-sky-500">Name Picker</span>
+          <span className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${onDark ? "text-sky-300" : "text-sky-500"}`}>Free to Play</span>
+          <span className={`mt-1 text-[15px] font-bold tracking-tight ${onDark ? "text-white" : "text-gray-800"}`}>
+            Duck Race <span className={onDark ? "text-sky-300" : "text-sky-500"}>Name Picker</span>
           </span>
         </span>
       )}
@@ -180,22 +183,29 @@ function SignInButton({ user, onSignIn, onSignOut }) {
   );
 }
 
-function NavItem({ item, collapsed = false }) {
+function NavItem({ item }) {
   return (
     <NavLink
       to={item.to}
       end={item.to === "/"}
+      title={item.label}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium ${
-          isActive ? "bg-sky-50 text-sky-500" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        `flex items-center gap-3 rounded-2xl px-2.5 py-2 text-sm font-semibold transition ${
+          isActive ? "bg-white text-slate-900 shadow-lg shadow-black/25" : "text-slate-300 hover:bg-white/10 hover:text-white"
         }`
       }
-      title={item.label}
     >
-      <Icon className="h-4 w-4 shrink-0">{icons[item.icon]}</Icon>
-      {!collapsed && <span className="truncate">{item.label}</span>}
-      {!collapsed && item.badge && (
-        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs font-medium ${item.badgeClass}`}>{item.badge}</span>
+      {({ isActive }) => (
+        <>
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+              isActive ? "bg-sky-500 text-white" : "bg-white/10 text-slate-300"
+            }`}
+          >
+            <Icon className="h-4 w-4">{icons[item.icon]}</Icon>
+          </span>
+          <span className="truncate">{item.label}</span>
+        </>
       )}
     </NavLink>
   );
