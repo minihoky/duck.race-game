@@ -1438,16 +1438,28 @@
     return inside;
   }
 
+  function inTurtleBelly(x, y, box) {
+    const rx = (x - box.x) / box.w;
+    const ry = (y - box.y) / box.h;
+    return rx > 0.18 && rx < 0.58 && ry > 0.64 && ry < 0.88;
+  }
+
+  function inTurtleShell(x, y, box) {
+    const nx = (x - (box.x + box.w * 0.37)) / (box.w * 0.22);
+    const ny = (y - (box.y + box.h * 0.34)) / (box.h * 0.27);
+    return nx * nx + ny * ny <= 1;
+  }
+
   function turtleLimbs(source) {
     const box = measureOpaque(source);
     const specs = [
       {
-        pivot: [0.14, 0.63],
-        polygon: [[0.00, 0.63], [0.18, 0.60], [0.20, 0.82], [0.12, 0.97], [0.00, 0.90]],
+        pivot: [0.08, 0.78],
+        polygon: [[0.00, 0.80], [0.14, 0.76], [0.15, 0.90], [0.08, 1.00], [0.00, 0.94]],
       },
       {
-        pivot: [0.56, 0.73],
-        polygon: [[0.50, 0.73], [0.76, 0.70], [0.78, 0.92], [0.58, 1.02], [0.48, 0.90]],
+        pivot: [0.60, 0.80],
+        polygon: [[0.54, 0.82], [0.74, 0.78], [0.78, 0.94], [0.62, 1.02], [0.52, 0.92]],
       },
     ];
     const image = source.getContext("2d").getImageData(0, 0, source.width, source.height);
@@ -1474,13 +1486,15 @@
       for (let y = minY; y <= maxY; y += 1) {
         for (let x = minX; x <= maxX; x += 1) {
           if (!pointInPolygon(x, y, points)) continue;
+          if ((y - box.y) / box.h < 0.76) continue;
+          if (inTurtleShell(x, y, box) || inTurtleBelly(x, y, box)) continue;
           const from = (y * source.width + x) * 4;
           if (data[from + 3] < 20) continue;
           const red = data[from];
           const green = data[from + 1];
           const blue = data[from + 2];
           if (red > 220 && green > 220 && blue > 220) continue;
-          if (red > 180 && green > 150 && blue < 150) continue;
+          if (red > 160 && green > 120 && blue < 170 && red > blue + 30) continue;
           mask[y * source.width + x] = 1;
         }
       }
@@ -1495,6 +1509,8 @@
                 const nx = x + dx;
                 const ny = y + dy;
                 if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue;
+                if (!pointInPolygon(nx, ny, points) || (ny - box.y) / box.h < 0.76) continue;
+                if (inTurtleShell(nx, ny, box) || inTurtleBelly(nx, ny, box)) continue;
                 const next = ny * source.width + nx;
                 if (mask[next]) continue;
                 const from = next * 4;
@@ -1587,7 +1603,7 @@
       ctx.rotate(angle);
       ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY);
       ctx.restore();
-      mendTurtleJoint(ctx, plate, leg.absX, leg.absY, 58);
+      mendTurtleJoint(ctx, plate, leg.absX, leg.absY, 28);
     });
     bitmap.image = bitmap._paddle;
   }
