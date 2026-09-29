@@ -33,7 +33,7 @@ export default function App() {
         <Route path="/credits" element={<Credits />} />
         <Route path="/checkout/:paymentId" element={<Checkout />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/AMIN_PAGE" element={<Admin />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/verify-email" element={<VerifyEmail />} />

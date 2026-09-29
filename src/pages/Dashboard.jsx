@@ -69,17 +69,6 @@ export default function Dashboard() {
     }
   }
 
-  async function claimAdmin() {
-    setError("");
-    try {
-      const result = await api("/api/account/dev-admin", { method: "POST", body: {} });
-      publishAccount(result.user);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   if (authError) {
     return (
       <div className="mx-auto max-w-lg px-4 pb-16 pt-24 text-center">
@@ -186,11 +175,6 @@ export default function Dashboard() {
           <a className="mt-2 block text-sm text-sky-600 underline" href={previewUrl}>
             Open the reset link
           </a>
-        )}
-        {account.devAdminAvailable && (
-          <button type="button" className="mt-4 block text-sm font-semibold text-gray-500" onClick={claimAdmin}>
-            Grant this local account administrator access
-          </button>
         )}
       </section>
     </div>

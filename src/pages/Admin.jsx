@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { publishAccount } from "../lib/auth";
 import { formatMoney, formatWhen } from "../lib/format";
 import { usePageTitle } from "../lib/usePageTitle";
 
 export default function Admin() {
   const [overview, setOverview] = useState(null);
+  const [gate, setGate] = useState("loading");
+  const [canSignUp, setCanSignUp] = useState(false);
   const [error, setError] = useState("");
   const [userId, setUserId] = useState("");
   const [credits, setCredits] = useState("10");
@@ -16,13 +19,40 @@ export default function Admin() {
 
   async function load() {
     try {
+      const account = await api("/api/account");
+      if (account.user?.role !== "admin") {
+        setCanSignUp(Boolean(account.devAdminAvailable));
+        setOverview(null);
+        setGate("denied");
+        return;
+      }
       const data = await api("/api/admin/overview");
       setOverview(data);
       setError("");
+      setGate("ready");
       setUserId((current) => current || data.users[0]?.id || "");
     } catch (err) {
-      setError(err.message);
       setOverview(null);
+      if (err.status === 401) {
+        setGate("signin");
+        return;
+      }
+      setError(err.message);
+      setGate("denied");
+    }
+  }
+
+  async function signUpAdmin() {
+    setError("");
+    setPending(true);
+    try {
+      const result = await api("/api/account/dev-admin", { method: "POST", body: {} });
+      publishAccount(result.user);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPending(false);
     }
   }
 
@@ -50,12 +80,55 @@ export default function Admin() {
     }
   }
 
+  if (gate === "signin") {
+    return (
+      <div className="mx-auto max-w-lg px-4 pb-16 pt-24 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Administrator</p>
+        <h1 className="mt-1 text-3xl font-bold">Sign in</h1>
+        <p className="mt-3 text-gray-600">This page is only for an administrator account.</p>
+        <button
+          type="button"
+          className="mt-6 rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white"
+          onClick={() => window.dispatchEvent(new Event("duck-open-signin"))}
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
+
+  if (gate !== "ready") {
+    return (
+      <div className="mx-auto max-w-lg px-4 pb-16 pt-24 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Administrator</p>
+        <h1 className="mt-1 text-3xl font-bold">{gate === "loading" ? "Loading…" : "Administrators only"}</h1>
+        {gate === "denied" && (
+          <p className="mt-3 text-gray-600">
+            {canSignUp
+              ? "Administrator sign-up is on this page. A regular account stays a regular account until you sign up here."
+              : "Only an administrator can open this page."}
+          </p>
+        )}
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {canSignUp && (
+          <button
+            type="button"
+            className="mt-6 rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white disabled:opacity-50"
+            onClick={signUpAdmin}
+            disabled={pending}
+          >
+            {pending ? "Signing up…" : "Sign up as administrator"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 pb-12 pt-20">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Administrator</p>
       <h1 className="mt-1 text-3xl font-bold">Dashboard</h1>
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-      {!overview && !error && <p className="mt-8 text-gray-500">Loading…</p>}
       {overview && (
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-4">

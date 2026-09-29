@@ -2,6 +2,7 @@ export const navItems = [
   { to: "/race", label: "Official Race", icon: "trophy" },
   { to: "/history", label: "Race History", icon: "list" },
   { to: "/credits", label: "Credits", icon: "credit" },
+  { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
 ];
 
 export const socials = [
