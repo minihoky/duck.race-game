@@ -117,119 +117,6 @@
     return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
   }
 
-  function inEllipse(rx, ry, cx, cy, ex, ey) {
-    const nx = (rx - cx) / ex;
-    const ny = (ry - cy) / ey;
-    return nx * nx + ny * ny <= 1;
-  }
-
-  function fishRole(box, x, y) {
-    const rx = (x - box.x) / box.w;
-    const ry = (y - box.y) / box.h;
-    if (rx > 0.93 && ry > 0.34 && ry < 0.58) return "mouth";
-    if (rx < 0.255) return "fin";
-    if (ry < 0.20 && rx > 0.38 && rx < 0.62) return "fin";
-    if (ry > 0.855 && rx > 0.42 && rx < 0.72) return "fin";
-    if (inEllipse(rx, ry, 0.55, 0.70, 0.07, 0.07)) return "fin";
-    return "body";
-  }
-
-  function paintBelly(copy, width, height, box) {
-    const cx = box.x + box.w * 0.50;
-    const cy = box.y + box.h * 0.52;
-    const rx = box.w * 0.13;
-    const ry = box.h * 0.10;
-    for (let y = Math.floor(cy - ry); y <= cy + ry; y += 1) {
-      for (let x = Math.floor(cx - rx); x <= cx + rx; x += 1) {
-        if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        const nx = (x - cx) / rx;
-        const ny = (y - cy) / ry;
-        if (nx * nx + ny * ny > 1) continue;
-        const offset = (y * width + x) * 4;
-        if (copy[offset + 3] < 20) continue;
-        if (Math.max(copy[offset], copy[offset + 1], copy[offset + 2]) < 70) continue;
-        copy[offset] = 255;
-        copy[offset + 1] = 255;
-        copy[offset + 2] = 255;
-      }
-    }
-  }
-
-  function paintHat(ctx, box) {
-    const cx = box.x + box.w * 0.73;
-    const cy = box.y + box.h * 0.22;
-    const radius = box.w * 0.09;
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = "#161616";
-    ctx.fillStyle = "#f08a14";
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, radius * 1.45, radius * 0.34, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  function recolor(source, kind) {
-    const width = source.width;
-    const height = source.height;
-    const original = source.getContext("2d").getImageData(0, 0, width, height);
-    const copy = new Uint8ClampedArray(original.data);
-    let minX = width;
-    let minY = height;
-    let maxX = 0;
-    let maxY = 0;
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        if (copy[(y * width + x) * 4 + 3] < 20) continue;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-    const box = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const offset = (y * width + x) * 4;
-        if (copy[offset + 3] < 20) continue;
-        const red = copy[offset];
-        const green = copy[offset + 1];
-        const blue = copy[offset + 2];
-        if (Math.max(red, green, blue) < 70) continue;
-        if (red > 230 && green > 230 && blue > 230) continue;
-        const detail = green < 120;
-        const part = fishRole(box, x, y);
-        const rx = (x - box.x) / box.w;
-        const ry = (y - box.y) / box.h;
-        let color = "#ffe14a";
-        if (kind === "yellow") color = part === "body" ? "#ffe14a" : (detail ? "#d86e08" : "#f08a14");
-        else if (kind === "costume") color = part === "mouth" ? "#f08a14" : (detail ? "#c41616" : "#ef3b3b");
-        else if (part === "mouth") color = "#f08a14";
-        else if (part === "fin" && rx < 0.255) color = detail ? "#c41616" : "#ef3b3b";
-        else if (ry > 0.60) color = "#ef3b3b";
-        else if (rx > 0.66) color = "#2f6fed";
-        else color = "#ffe14a";
-        const value = parseInt(color.slice(1), 16);
-        copy[offset] = (value >> 16) & 255;
-        copy[offset + 1] = (value >> 8) & 255;
-        copy[offset + 2] = value & 255;
-      }
-    }
-    if (kind !== "costume") paintBelly(copy, width, height, box);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.putImageData(new ImageData(copy, width, height), 0, 0);
-    if (kind === "costume") paintHat(ctx, box);
-    return canvas;
-  }
-
   function bodyPlate(canvas) {
     const width = canvas.width;
     const height = canvas.height;
@@ -316,7 +203,10 @@
   function buildPacks(source) {
     const oldPlate = badge;
     ["costume", "yellow", "colors"].forEach(function (kind) {
-      const canvas = recolor(source, kind);
+      const canvas = document.createElement("canvas");
+      canvas.width = source.width;
+      canvas.height = source.height;
+      canvas.getContext("2d").drawImage(source, 0, 0);
       coverPlate(canvas, oldPlate);
       const plate = bodyPlate(canvas);
       packs[kind] = {
