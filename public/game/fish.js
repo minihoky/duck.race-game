@@ -816,7 +816,9 @@
 
   function poseHat(look, tilt) {
     if (!tilt) return look;
-    if (look._pose) return look._pose;
+    const key = String(tilt);
+    if (!look._poses) look._poses = {};
+    if (look._poses[key]) return look._poses[key];
     const src = look.canvas;
     const cos = Math.abs(Math.cos(tilt));
     const sin = Math.abs(Math.sin(tilt));
@@ -827,8 +829,8 @@
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(tilt);
     ctx.drawImage(src, -src.width / 2, -src.height / 2);
-    look._pose = hatMetrics(canvas);
-    return look._pose;
+    look._poses[key] = hatMetrics(canvas);
+    return look._poses[key];
   }
 
   function planFrogHat(picture, frame, clip) {
@@ -844,6 +846,168 @@
     const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
     const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
     const seatY = head.pupilCy - head.pupilW * fit.above;
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
+  // drop tucks the opening onto the skull, in pupil-widths below the crown.
+  // back shifts the opening toward the spines. tilt tips a brim down over the snout.
+  const SEA_HAT_FIT = {
+    3: { mul: 2.05, drop: 0.85, back: 1.05, ax: 0.46, tilt: 0.1 },
+    22: { mul: 1.7, drop: 0.52, back: .8, ax: 0.5, tilt: 0 },
+    40: { mul: 2.15, drop: 0.6, back: 1.1, ax: 0.5, tilt: 0.06 },
+    49: { mul: 1.85, drop: 0.52, back: 0.8, ax: 0.5, tilt: .1 },
+    19: { mul: 1.95, drop: 0.45, back: 0.6, ax: 0.5, tilt: 0 },
+    12: { mul: 1.85, drop: 0.37, back: 0.8, ax: 0.5, tilt: .1 },
+    9: { mul: 1.6, drop: 0.3, back: 0.2, ax: 0.62, tilt: 0 },
+    44: { mul: 1.65, drop: 0.37, back: 0.8, ax: 0.42, tilt: .3 },
+  };
+
+  function seahorseHead(canvas) {
+    if (canvas._seaHead) return canvas._seaHead;
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.28);
+    const x1 = Math.floor(box.x + box.w * 0.8);
+    const y0 = Math.floor(box.y + box.h * 0.01);
+    const y1 = Math.floor(box.y + box.h * 0.3);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (sumN < 30 || blobW < 10 || blobH < 10 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.55;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.14;
+    const pupilW = pupil ? pupil.w : box.w * 0.12;
+    const pupilH = pupil ? pupil.h : pupilW;
+    const bandL = Math.max(0, Math.floor(pupilCx - pupilW * 0.28));
+    const bandR = Math.min(width - 1, Math.ceil(pupilCx + pupilW * 0.12));
+    const tops = [];
+    for (let x = bandL; x <= bandR; x += 1) {
+      for (let y = Math.max(0, y0 - 4); y < pupilCy; y += 1) {
+        if (data[(y * width + x) * 4 + 3] < 40) continue;
+        tops.push(y);
+        break;
+      }
+    }
+    tops.sort(function (a, b) { return a - b; });
+    const crownY = tops.length ? tops[Math.floor(tops.length * 0.45)] : pupilCy - pupilH;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.7;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    canvas._seaHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._seaHead;
+  }
+
+  function planSeahorseHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = seahorseHead(art);
+    if (!head) return null;
+    picture._frogHead = head;
+    const fit = SEA_HAT_FIT[frame] || { mul: 2, drop: 0.04, back: 0.16, ax: 0.5, tilt: 0 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.crownY + head.pupilW * (fit.drop || 0);
     return {
       canvas: look.canvas,
       x: seatX - ax * hatW,
@@ -897,7 +1061,7 @@
 
   function stampNumber(digit, label, source, lookFrame, lookHost) {
     const picture = source || art;
-    const hat = lookFrame && lookHost ? planFrogHat(picture, lookFrame, lookHost) : null;
+    const hat = lookFrame && lookHost ? (active === "seahorse" ? planSeahorseHat(picture, lookFrame, lookHost) : planFrogHat(picture, lookFrame, lookHost)) : null;
     const padX = hat ? Math.max(0, Math.ceil(-hat.x)) : 0;
     const padY = hat ? Math.max(0, Math.ceil(-hat.y)) : 0;
     const extraR = hat ? Math.max(0, Math.ceil(hat.x + hat.w - picture.width)) : 0;
@@ -1141,8 +1305,8 @@
     const padX = bitmap.image && bitmap.image._padX ? bitmap.image._padX : 0;
     const padY = bitmap.image && bitmap.image._padY ? bitmap.image._padY : 0;
     if (active === "seahorse") {
-      bitmap.regX = span.x + span.w / 2;
-      bitmap.regY = span.y + span.h / 2;
+      bitmap.regX = span.x + span.w / 2 + padX;
+      bitmap.regY = span.y + span.h / 2 + padY;
     } else if (pivot) {
       bitmap.regX = pivot.x + padX;
       bitmap.regY = pivot.y + padY;
@@ -1536,7 +1700,7 @@
       }
       host = host.parent;
     }
-    const lookFrame = active === "frog" ? frogLookFrame(node, label) : 0;
+    const lookFrame = active === "frog" || (active === "seahorse" && hatsLive) ? frogLookFrame(node, label) : 0;
     const color = active === "frog" ? frogColor(node) : 0;
     const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "") + (color ? ":c" + color : "");
     if (color) picture = tintFrog(picture || art, color);
@@ -1970,7 +2134,7 @@
     stage.update = function () {
       readRacing();
       const settings = findSettings();
-      const onTrack = species === "frog" && (racing || (settings && settings.visible === false));
+      const onTrack = (species === "frog" || species === "seahorse") && (racing || (settings && settings.visible === false));
       if (!onTrack) {
         if (hatsLive) {
           hatsLive = false;
