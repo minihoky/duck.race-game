@@ -412,6 +412,8 @@
     12: { mul: 2.35, above: .35, back: .8, ax: 0.5, tilt: 0.12 },
     9: { mul: 2.0, above:  0.54, back: 0.5, ax: 0.5, tilt: 0 },
     44: { mul: 2.35, above: .35, back: .8, ax: 0.5, tilt: 0.12 },
+
+    
   };
   let frogLooks = null;
 

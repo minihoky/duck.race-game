@@ -2,6 +2,18 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { devAdminOpen, mutate, readSession, viewUser } from "./accounts.js";
+import {
+  accessToken,
+  assessCharge,
+  chargeCurrency,
+  createPreference,
+  fetchMerchantOrder,
+  fetchPayment,
+  notificationKind,
+  signedDataId,
+  verifyWebhookSignature,
+  webhookSecret,
+} from "./mercadopago.js";
 
 const sponsorDir = path.join(process.cwd(), "server", "data", "sponsors");
 
@@ -16,8 +28,20 @@ export const PACKAGES = [
 function gatewayMode() {
   const configured = String(process.env.PAYMENT_GATEWAY || "").trim().toLowerCase();
   if (configured === "demo") return "demo";
+  if (configured === "mercadopago") return "mercadopago";
   if (!configured && process.env.NODE_ENV !== "production") return "demo";
   return configured || "unconfigured";
+}
+
+function publicPackages() {
+  const currency = gatewayMode() === "mercadopago" ? chargeCurrency() : null;
+  return PACKAGES.map((pack) => (currency ? { ...pack, currency } : pack));
+}
+
+function appOrigin(req, origin) {
+  const configured = String(process.env.PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  return origin(req);
 }
 
 function id12() {
@@ -123,7 +147,51 @@ function paymentView(payment) {
     gateway: payment.gateway,
     createdAt: payment.createdAt,
     paidAt: payment.paidAt || null,
+    checkoutUrl: payment.status === "pending" ? payment.checkoutUrl || "" : "",
+    gatewayStatus: payment.gatewayStatus || "",
   };
+}
+
+function applyRemoteCharge(state, remote) {
+  const local = state.payments.find((item) => item.id === String(remote.external_reference || ""));
+  if (!local || local.gateway !== "mercadopago") return false;
+  const decision = assessCharge(local, remote);
+  if (decision.action === "ignore") return false;
+  if (decision.action === "reject") {
+    if (local.status === "paid" || local.gatewayStatus === "amount_mismatch") return false;
+    local.gatewayStatus = "amount_mismatch";
+    console.error(`Mercado Pago payment ${remote.id} did not match checkout ${local.id}.`);
+    return true;
+  }
+  if (decision.action === "grant") {
+    const prior = state.payments.find((item) => item.gatewayRef === decision.mpId && item.id !== local.id && item.status === "paid");
+    if (prior) return false;
+    if (local.status === "paid") {
+      if (local.gatewayStatus === "approved") return false;
+      local.gatewayStatus = "approved";
+      return true;
+    }
+    if (!grantPayment(state, local, decision.mpId)) return false;
+    local.gatewayStatus = "approved";
+    return true;
+  }
+  if (decision.action === "fail" && local.status === "pending") {
+    local.status = "failed";
+    local.gatewayRef = decision.mpId;
+    local.gatewayStatus = decision.status;
+    return true;
+  }
+  if (local.status === "paid") return false;
+  let changed = false;
+  if (decision.mpId && local.status !== "paid" && local.gatewayRef !== decision.mpId) {
+    local.gatewayRef = decision.mpId;
+    changed = true;
+  }
+  if (local.gatewayStatus !== decision.status) {
+    local.gatewayStatus = decision.status;
+    changed = true;
+  }
+  return changed;
 }
 
 function sponsorView(sponsor) {
@@ -185,18 +253,89 @@ function requireUser(req, cookies) {
   return readSession(cookies(req).dr_session);
 }
 
+function parseNotice(raw) {
+  if (!raw.length) return {};
+  try {
+    return JSON.parse(raw.toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function isMercadoPagoNotice(req, url, body) {
+  if (req.headers["x-signature"]) return true;
+  const kind = notificationKind(url, body);
+  return kind === "payment" || kind === "merchant_order" || Boolean(url.searchParams.get("data.id"));
+}
+
+async function mercadoPagoPaymentIds(token, url, body) {
+  const dataId = signedDataId(url, body);
+  if (!dataId) return [];
+  if (notificationKind(url, body) === "merchant_order") {
+    const order = await fetchMerchantOrder(token, dataId);
+    return (Array.isArray(order.payments) ? order.payments : []).map((item) => item.id).filter((id) => id != null).map(String);
+  }
+  return [String(dataId)];
+}
+
+async function settleMercadoPagoIds(ids) {
+  const token = accessToken();
+  const remotes = [];
+  for (const id of ids) remotes.push(await fetchPayment(token, id));
+  return mutate((state) => {
+    let changed = false;
+    for (const remote of remotes) {
+      if (applyRemoteCharge(state, remote)) changed = true;
+    }
+    return { status: 200, persist: changed, ok: true };
+  });
+}
+
 export async function handlePlatform(req, res, url, ctx) {
   const pathName = url.pathname;
-  const { send, cookies, readBody, readRaw, limited } = ctx;
+  const { send, cookies, origin, readBody, readRaw, limited } = ctx;
   const ip = req.socket?.remoteAddress || "local";
 
   if (req.method === "GET" && pathName === "/api/credits/packages") {
-    send(res, 200, { packages: PACKAGES, gateway: gatewayMode() });
+    send(res, 200, { packages: publicPackages(), gateway: gatewayMode() });
     return;
   }
 
   if (req.method === "POST" && pathName === "/api/credits/webhook") {
     const raw = await readRaw(req, 20_000);
+    const notice = parseNotice(raw);
+    if (isMercadoPagoNotice(req, url, notice)) {
+      const token = accessToken();
+      if (!token) {
+        send(res, 503, { error: "Mercado Pago is not configured." });
+        return;
+      }
+      const secret = webhookSecret();
+      const dataId = signedDataId(url, notice);
+      const check = verifyWebhookSignature({
+        secret,
+        signatureHeader: req.headers["x-signature"],
+        requestId: String(req.headers["x-request-id"] || ""),
+        dataId,
+      });
+      if (!check.ok) {
+        send(res, 401, { error: check.error });
+        return;
+      }
+      try {
+        const ids = await mercadoPagoPaymentIds(token, url, notice);
+        if (!ids.length) {
+          send(res, 200, { ok: true });
+          return;
+        }
+        const result = await settleMercadoPagoIds(ids);
+        reply(res, send, result);
+      } catch (error) {
+        console.error(error);
+        send(res, 502, { error: "Mercado Pago could not be confirmed." });
+      }
+      return;
+    }
     const secret = process.env.PAYMENT_WEBHOOK_SECRET || "";
     const header = String(req.headers["x-duck-signature"] || "");
     if (!secret || !header) {
@@ -219,6 +358,9 @@ export async function handlePlatform(req, res, url, ctx) {
     const result = await mutate((state) => {
       const payment = state.payments.find((item) => item.id === body.paymentId);
       if (!payment) return { status: 404, persist: false, error: "That payment was not found." };
+      if (payment.gateway === "mercadopago") {
+        return { status: 400, persist: false, error: "This payment is confirmed by Mercado Pago." };
+      }
       if (body.status === "paid") {
         grantPayment(state, payment, String(body.gatewayRef || ""));
         return { status: 200, ok: true };
@@ -411,7 +553,16 @@ export async function handlePlatform(req, res, url, ctx) {
       return;
     }
     const mode = gatewayMode();
-    const result = await mutate((state) => {
+    if (mode !== "demo" && mode !== "mercadopago") {
+      send(res, 503, { error: "The payment gateway is not configured." });
+      return;
+    }
+    if (mode === "mercadopago" && !accessToken()) {
+      send(res, 503, { error: "Mercado Pago is not configured. Add MERCADOPAGO_ACCESS_TOKEN." });
+      return;
+    }
+    const currency = mode === "mercadopago" ? chargeCurrency() : pack.currency;
+    const created = await mutate((state) => {
       const payment = {
         id: id12(),
         userId: user.id,
@@ -419,15 +570,53 @@ export async function handlePlatform(req, res, url, ctx) {
         packageName: pack.name,
         credits: pack.credits,
         amount: pack.amount,
-        currency: pack.currency,
+        currency,
         status: "pending",
         gateway: mode === "demo" ? "demo" : mode,
         createdAt: Date.now(),
       };
       state.payments.push(payment);
-      return { status: 201, payment: paymentView(payment), demo: mode === "demo" };
+      return { status: 201, paymentId: payment.id, demo: mode === "demo" };
     });
-    reply(res, send, result);
+    if (created.status !== 201) {
+      reply(res, send, created);
+      return;
+    }
+    if (mode !== "mercadopago") {
+      const listed = await mutate((state) => {
+        const payment = state.payments.find((item) => item.id === created.paymentId);
+        return { status: 201, persist: false, payment: paymentView(payment), demo: mode === "demo" };
+      });
+      reply(res, send, listed);
+      return;
+    }
+    try {
+      const preference = await createPreference({
+        token: accessToken(),
+        payment: { id: created.paymentId, packageId: pack.id, packageName: pack.name, credits: pack.credits, amount: pack.amount, currency },
+        origin: appOrigin(req, origin),
+        payerEmail: user.email,
+      });
+      const listed = await mutate((state) => {
+        const payment = state.payments.find((item) => item.id === created.paymentId);
+        if (!payment) return { status: 404, persist: false, error: "That payment was not found." };
+        payment.preferenceId = preference.preferenceId;
+        payment.checkoutUrl = preference.checkoutUrl;
+        return { status: 201, payment: paymentView(payment), checkoutUrl: preference.checkoutUrl, demo: false };
+      });
+      reply(res, send, listed);
+    } catch (error) {
+      console.error(error);
+      await mutate((state) => {
+        const payment = state.payments.find((item) => item.id === created.paymentId);
+        if (payment && payment.status === "pending") {
+          payment.status = "failed";
+          payment.gatewayStatus = "checkout_failed";
+        }
+        return { status: 200 };
+      });
+      send(res, 502, { error: "Mercado Pago could not start this checkout. Try again." });
+    }
     return;
   }
 
@@ -447,12 +636,68 @@ export async function handlePlatform(req, res, url, ctx) {
     return;
   }
 
+  if (req.method === "POST" && pathName === "/api/credits/sync") {
+    const body = await readBody(req);
+    const mpPaymentId = String(body.mpPaymentId || "").trim();
+    if (!/^\d{1,20}$/.test(mpPaymentId)) {
+      send(res, 400, { error: "That Mercado Pago payment could not be read." });
+      return;
+    }
+    const token = accessToken();
+    if (!token) {
+      send(res, 503, { error: "Mercado Pago is not configured." });
+      return;
+    }
+    let remote;
+    try {
+      remote = await fetchPayment(token, mpPaymentId);
+    } catch (error) {
+      console.error(error);
+      send(res, 502, { error: "Mercado Pago could not be confirmed." });
+      return;
+    }
+    const result = await mutate((state) => {
+      const payment = state.payments.find((item) => item.id === body.paymentId && item.userId === user.id);
+      if (!payment) return { status: 404, persist: false, error: "That payment was not found." };
+      if (String(remote.external_reference || "") !== payment.id) {
+        return { status: 400, persist: false, error: "That Mercado Pago payment does not match this checkout." };
+      }
+      applyRemoteCharge(state, remote);
+      const account = state.users.find((item) => item.id === user.id);
+      return { status: 200, payment: paymentView(payment), user: viewUser(account), gateway: gatewayMode() };
+    });
+    reply(res, send, result);
+    return;
+  }
+
   const paymentMatch = pathName.match(/^\/api\/credits\/payments\/([A-Za-z0-9_-]{8,32})$/);
   if (req.method === "GET" && paymentMatch) {
+    const peek = await mutate((state) => {
+      const payment = state.payments.find((item) => item.id === paymentMatch[1] && (item.userId === user.id || user.role === "admin"));
+      if (!payment) return { status: 404, persist: false, error: "That payment was not found." };
+      const refreshId = payment.status === "pending" && payment.gateway === "mercadopago" ? String(payment.gatewayRef || "") : "";
+      return { status: 200, persist: false, refreshId };
+    });
+    if (peek.status !== 200) {
+      reply(res, send, peek);
+      return;
+    }
+    if (/^\d{1,20}$/.test(peek.refreshId) && accessToken()) {
+      try {
+        const remote = await fetchPayment(accessToken(), peek.refreshId);
+        await mutate((state) => {
+          applyRemoteCharge(state, remote);
+          return { status: 200 };
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
     const result = await mutate((state) => {
       const payment = state.payments.find((item) => item.id === paymentMatch[1] && (item.userId === user.id || user.role === "admin"));
       if (!payment) return { status: 404, persist: false, error: "That payment was not found." };
-      return { status: 200, persist: false, payment: paymentView(payment), gateway: gatewayMode() };
+      const account = state.users.find((item) => item.id === user.id);
+      return { status: 200, persist: false, payment: paymentView(payment), user: account ? viewUser(account) : viewUser(user), gateway: gatewayMode() };
     });
     reply(res, send, result);
     return;

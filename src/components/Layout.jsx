@@ -105,7 +105,15 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {signInOpen && <AuthDialog onClose={() => setSignInOpen(false)} onSignedIn={signedIn} />}
+      {signInOpen && (
+        <AuthDialog
+          onClose={() => {
+            setSignInOpen(false);
+            window.dispatchEvent(new Event("duck-signin-closed"));
+          }}
+          onSignedIn={signedIn}
+        />
+      )}
     </div>
   );
 }

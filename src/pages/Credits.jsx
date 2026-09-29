@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { me } from "../lib/auth";
@@ -12,21 +12,10 @@ export default function Credits() {
   const [user, setUser] = useState(undefined);
   const [error, setError] = useState("");
   const [pending, setPending] = useState("");
+  const waitingPackage = useRef("");
   usePageTitle("Credits - Duck Race");
 
-  useEffect(() => {
-    api("/api/credits/packages").then((data) => {
-      setPackages(data.packages);
-      setGateway(data.gateway);
-    });
-    me().then(setUser);
-  }, []);
-
-  async function buy(packageId) {
-    if (!user) {
-      window.dispatchEvent(new Event("duck-open-signin"));
-      return;
-    }
+  async function openPayment(packageId) {
     setError("");
     setPending(packageId);
     try {
@@ -34,9 +23,44 @@ export default function Credits() {
       navigate(`/checkout/${data.payment.id}`);
     } catch (err) {
       setError(err.message);
-    } finally {
       setPending("");
     }
+  }
+
+  useEffect(() => {
+    api("/api/credits/packages").then((data) => {
+      setPackages(data.packages);
+      setGateway(data.gateway);
+    });
+    me().then(setUser);
+    function onAccount(event) {
+      const next = event.detail || null;
+      setUser(next);
+      const packageId = waitingPackage.current;
+      if (next && packageId) {
+        waitingPackage.current = "";
+        openPayment(packageId);
+      }
+    }
+    function onClosed() {
+      waitingPackage.current = "";
+    }
+    window.addEventListener("duck-account", onAccount);
+    window.addEventListener("duck-signin-closed", onClosed);
+    return () => {
+      window.removeEventListener("duck-account", onAccount);
+      window.removeEventListener("duck-signin-closed", onClosed);
+    };
+  }, []);
+
+  function buy(packageId) {
+    if (user === undefined) return;
+    if (!user) {
+      waitingPackage.current = packageId;
+      window.dispatchEvent(new Event("duck-open-signin"));
+      return;
+    }
+    openPayment(packageId);
   }
 
   return (
@@ -63,9 +87,9 @@ export default function Credits() {
               type="button"
               className="mt-6 rounded-xl bg-sky-500 py-2 font-semibold text-white disabled:opacity-50"
               onClick={() => buy(pack.id)}
-              disabled={pending === pack.id}
+              disabled={pending === pack.id || user === undefined}
             >
-              {pending === pack.id ? "Starting checkout…" : user ? "Buy package" : "Sign in to buy"}
+              {pending === pack.id ? "Opening payment…" : user === undefined ? "Loading…" : user ? "Continue to payment" : "Sign in to pay"}
             </button>
           </article>
         ))}
@@ -73,8 +97,10 @@ export default function Credits() {
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       <p className="mt-8 text-sm text-gray-500">
         {gateway === "demo"
-          ? "The live card processor is not connected yet. Checkout on this server is a test payment and does not charge a card. A payment gateway can confirm purchases through the webhook."
-          : "Purchases stay pending until the payment gateway confirms them. The provider is still to be connected."}{" "}
+          ? "The live card processor is not connected yet. Checkout on this server is a test payment and does not charge a card."
+          : gateway === "mercadopago"
+            ? "You pay on Mercado Pago. Credits are added only after Mercado Pago confirms the payment and this server checks that confirmation."
+            : "The payment gateway is not configured yet."}{" "}
         <Link className="text-sky-600 underline" to="/terms">
           Terms
         </Link>

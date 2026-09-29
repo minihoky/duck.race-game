@@ -14,7 +14,7 @@ export default function Subscription() {
         <li>One credit is used when an official race begins.</li>
         <li>A package of 10 credits covers 10 official races.</li>
         <li>Credits stay inside Duck Race. They cannot be withdrawn, transferred, or refunded for cash.</li>
-        <li>Purchases are confirmed by the payment gateway. The provider is still being connected.</li>
+        <li>Each purchase opens a payment page. Credits are added after the payment is confirmed.</li>
       </ul>
       <Link to="/credits" className="inline-block rounded-xl bg-sky-500 px-5 py-3 font-semibold text-white">
         View credit packages
