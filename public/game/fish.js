@@ -1370,7 +1370,6 @@
     bitmap.y = anchor.y;
     bitmap.rotation = 0;
     if (active === "frog" && inRace && racing) hopFrog(bitmap, anchor, colourBounds ? colourBounds.height * 0.22 : 18);
-    else if (active === "turtle" && inRace && racing) paddleTurtle(bitmap);
     else if (bitmap._plate && bitmap.image !== bitmap._plate) bitmap.image = bitmap._plate;
     hideLaneNumber(body);
     if (active === "frog") placeFrogName(body, bitmap);
@@ -1493,7 +1492,7 @@
   function inTurtleBelly(x, y, box) {
     const rx = (x - box.x) / box.w;
     const ry = (y - box.y) / box.h;
-    return rx > 0.18 && rx < 0.58 && ry > 0.64 && ry < 0.88;
+    return rx > 0.22 && rx < 0.62 && ry > 0.62 && ry < 0.78;
   }
 
   function inTurtleShell(x, y, box) {
@@ -1506,12 +1505,12 @@
     const box = measureOpaque(source);
     const specs = [
       {
-        pivot: [0.08, 0.78],
-        polygon: [[0.00, 0.80], [0.14, 0.76], [0.15, 0.90], [0.08, 1.00], [0.00, 0.94]],
+        pivot: [0.22, 0.82],
+        polygon: [[0.04, 0.78], [0.38, 0.76], [0.40, 0.92], [0.28, 1.04], [0.04, 0.96]],
       },
       {
-        pivot: [0.60, 0.80],
-        polygon: [[0.54, 0.82], [0.74, 0.78], [0.78, 0.94], [0.62, 1.02], [0.52, 0.92]],
+        pivot: [0.55, 0.82],
+        polygon: [[0.40, 0.78], [0.76, 0.76], [0.76, 0.96], [0.48, 1.04], [0.38, 0.90]],
       },
     ];
     const image = source.getContext("2d").getImageData(0, 0, source.width, source.height);
@@ -1538,7 +1537,7 @@
       for (let y = minY; y <= maxY; y += 1) {
         for (let x = minX; x <= maxX; x += 1) {
           if (!pointInPolygon(x, y, points)) continue;
-          if ((y - box.y) / box.h < 0.76) continue;
+          if ((y - box.y) / box.h < 0.78) continue;
           if (inTurtleShell(x, y, box) || inTurtleBelly(x, y, box)) continue;
           const from = (y * source.width + x) * 4;
           if (data[from + 3] < 20) continue;
@@ -1561,7 +1560,7 @@
                 const nx = x + dx;
                 const ny = y + dy;
                 if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue;
-                if (!pointInPolygon(nx, ny, points) || (ny - box.y) / box.h < 0.76) continue;
+                if (!pointInPolygon(nx, ny, points) || (ny - box.y) / box.h < 0.78) continue;
                 if (inTurtleShell(nx, ny, box) || inTurtleBelly(nx, ny, box)) continue;
                 const next = ny * source.width + nx;
                 if (mask[next]) continue;
@@ -2369,7 +2368,7 @@
       frogReady = canvas;
       tryBoot();
     });
-    load("turtle-ref.jpg", function (canvas) {
+    load("turtle-body.png", function (canvas) {
       turtleReady = canvas;
       tryBoot();
     });
