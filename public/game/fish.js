@@ -1069,6 +1069,168 @@
     };
   }
 
+  // drop tucks the opening onto the crown, in pupil-widths below the top of the head.
+  // back shifts the opening toward the shell, clear of the snout.
+  const TURTLE_HAT_FIT = {
+    3: { mul: 2.05, drop: 0.16, back: 0.9, ax: 0.46, tilt: 0.12 },
+    22: { mul: 1.65, drop: 0.06, back: 0.75, ax: 0.5, tilt: 0 },
+    40: { mul: 1.95, drop: 0.0, back: 0.8, ax: 0.5, tilt: 0.06 },
+    49: { mul: 1.75, drop: 0.14, back: 0.8, ax: 0.5, tilt: 0 },
+    19: { mul: 1.8, drop: 0.04, back: 0.6, ax: 0.5, tilt: 0 },
+    12: { mul: 1.85, drop: 0.1, back: 0.75, ax: 0.5, tilt: 0.05 },
+    9: { mul: 1.65, drop: 0.08, back: 0.5, ax: 0.55, tilt: 0 },
+    44: { mul: 1.45, drop: 0.08, back: 0.85, ax: 0.42, tilt: 0 },
+  };
+
+  function turtleHead(canvas) {
+    if (canvas._turtleHead) return canvas._turtleHead;
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.62);
+    const x1 = Math.floor(box.x + box.w * 0.98);
+    const y0 = Math.floor(box.y + box.h * 0.04);
+    const y1 = Math.floor(box.y + box.h * 0.58);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (sumN < 12 || blobW < 6 || blobH < 6 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.78;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.32;
+    const pupilW = pupil ? pupil.w : box.w * 0.11;
+    const pupilH = pupil ? pupil.h : pupilW;
+    const bandL = Math.max(0, Math.floor(pupilCx - pupilW * 0.45));
+    const bandR = Math.min(width - 1, Math.ceil(pupilCx + pupilW * 0.02));
+    const tops = [];
+    for (let x = bandL; x <= bandR; x += 1) {
+      for (let y = box.y; y < pupilCy; y += 1) {
+        if (data[(y * width + x) * 4 + 3] < 40) continue;
+        tops.push(y);
+        break;
+      }
+    }
+    tops.sort(function (a, b) { return a - b; });
+    const crownY = tops.length ? tops[Math.floor(tops.length * 0.62)] : pupilCy - pupilH;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.7;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    canvas._turtleHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._turtleHead;
+  }
+
+  function planTurtleHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = turtleHead(art);
+    if (!head) return null;
+    picture._frogHead = head;
+    const fit = TURTLE_HAT_FIT[frame] || { mul: 1.9, drop: 0.16, back: 0.1, ax: 0.5, tilt: 0 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.crownY + head.pupilW * (fit.drop || 0);
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
   function revealEye(ctx, picture, padX, padY) {
     const head = picture._frogHead;
     if (!head) return;
@@ -1113,7 +1275,7 @@
 
   function stampNumber(digit, label, source, lookFrame, lookHost) {
     const picture = source || art;
-    const hat = lookFrame && lookHost ? (active === "seahorse" ? planSeahorseHat(picture, lookFrame, lookHost) : species === "fish" ? planFishHat(picture, lookFrame, lookHost) : planFrogHat(picture, lookFrame, lookHost)) : null;
+    const hat = lookFrame && lookHost ? (active === "seahorse" ? planSeahorseHat(picture, lookFrame, lookHost) : active === "turtle" ? planTurtleHat(picture, lookFrame, lookHost) : species === "fish" ? planFishHat(picture, lookFrame, lookHost) : planFrogHat(picture, lookFrame, lookHost)) : null;
     const padX = hat ? Math.max(0, Math.ceil(-hat.x)) : 0;
     const padY = hat ? Math.max(0, Math.ceil(-hat.y)) : 0;
     const extraR = hat ? Math.max(0, Math.ceil(hat.x + hat.w - picture.width)) : 0;
@@ -1316,9 +1478,13 @@
     let host = body;
     let inCard = false;
     let inRace = false;
+    let fieldScale = 1;
     while (host) {
       if (host.name === "choiceToggle") inCard = true;
-      if (/^character\d/.test(host.name || "")) inRace = true;
+      if (/^character\d/.test(host.name || "")) {
+        inRace = true;
+        fieldScale = Math.abs(host.scaleX || 1);
+      }
       host = host.parent;
     }
     const span = fishOpaque();
@@ -1331,6 +1497,8 @@
       const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
       scale = targetW / span.w;
     }
+    // A full start line scales every racer down. Give the other species a little of that size back.
+    if (inRace && fieldScale <= 0.505) scale *= 1.12;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
     if (active === "turtle") paintTurtle(bitmap, inRace && racing);
@@ -1631,7 +1799,7 @@
       }
       host = host.parent;
     }
-    const lookFrame = active === "frog" || ((active === "seahorse" || species === "fish") && hatsLive) ? frogLookFrame(node, label) : 0;
+    const lookFrame = active === "frog" || ((active === "seahorse" || active === "turtle" || species === "fish") && hatsLive) ? frogLookFrame(node, label) : 0;
     const color = active === "frog" ? frogColor(node) : 0;
     const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "") + (color ? ":c" + color : "");
     if (color) picture = tintFrog(picture || art, color);
@@ -2065,7 +2233,7 @@
     stage.update = function () {
       readRacing();
       const settings = findSettings();
-      const onTrack = (species === "frog" || species === "seahorse" || species === "fish") && (racing || (settings && settings.visible === false));
+      const onTrack = (species === "frog" || species === "seahorse" || species === "fish" || species === "turtle") && (racing || (settings && settings.visible === false));
       if (!onTrack) {
         if (hatsLive) {
           hatsLive = false;
