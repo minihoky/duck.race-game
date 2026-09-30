@@ -40,6 +40,7 @@ function rememberSetup(race) {
     "duck-official-setup",
     JSON.stringify({
       id: race.id,
+      name: race.name,
       names: race.names,
       durationSec: Math.round((race.durationMs || 0) / 1000),
     })
