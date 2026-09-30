@@ -144,8 +144,10 @@ function RacePlayer({ id }) {
 function RaceSetup() {
   usePageTitle("Official Race - Duck Race");
   return (
-    <div className="relative h-[calc(100vh-16px)] p-1 md:p-3">
-      <iframe title="Official race" src="/game/index.html" className="game-bezel h-full w-full" />
+    <div className="game-stage">
+      <div className="game-bezel">
+        <iframe title="Official race" src="/game/index.html" className="game-screen" />
+      </div>
     </div>
   );
 }
