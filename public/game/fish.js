@@ -117,119 +117,6 @@
     return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
   }
 
-  function inEllipse(rx, ry, cx, cy, ex, ey) {
-    const nx = (rx - cx) / ex;
-    const ny = (ry - cy) / ey;
-    return nx * nx + ny * ny <= 1;
-  }
-
-  function fishRole(box, x, y) {
-    const rx = (x - box.x) / box.w;
-    const ry = (y - box.y) / box.h;
-    if (rx > 0.93 && ry > 0.34 && ry < 0.58) return "mouth";
-    if (rx < 0.255) return "fin";
-    if (ry < 0.20 && rx > 0.38 && rx < 0.62) return "fin";
-    if (ry > 0.855 && rx > 0.42 && rx < 0.72) return "fin";
-    if (inEllipse(rx, ry, 0.55, 0.70, 0.07, 0.07)) return "fin";
-    return "body";
-  }
-
-  function paintBelly(copy, width, height, box) {
-    const cx = box.x + box.w * 0.50;
-    const cy = box.y + box.h * 0.52;
-    const rx = box.w * 0.13;
-    const ry = box.h * 0.10;
-    for (let y = Math.floor(cy - ry); y <= cy + ry; y += 1) {
-      for (let x = Math.floor(cx - rx); x <= cx + rx; x += 1) {
-        if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        const nx = (x - cx) / rx;
-        const ny = (y - cy) / ry;
-        if (nx * nx + ny * ny > 1) continue;
-        const offset = (y * width + x) * 4;
-        if (copy[offset + 3] < 20) continue;
-        if (Math.max(copy[offset], copy[offset + 1], copy[offset + 2]) < 70) continue;
-        copy[offset] = 255;
-        copy[offset + 1] = 255;
-        copy[offset + 2] = 255;
-      }
-    }
-  }
-
-  function paintHat(ctx, box) {
-    const cx = box.x + box.w * 0.73;
-    const cy = box.y + box.h * 0.22;
-    const radius = box.w * 0.09;
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = "#161616";
-    ctx.fillStyle = "#f08a14";
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, radius * 1.45, radius * 0.34, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  function recolor(source, kind) {
-    const width = source.width;
-    const height = source.height;
-    const original = source.getContext("2d").getImageData(0, 0, width, height);
-    const copy = new Uint8ClampedArray(original.data);
-    let minX = width;
-    let minY = height;
-    let maxX = 0;
-    let maxY = 0;
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        if (copy[(y * width + x) * 4 + 3] < 20) continue;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-    const box = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const offset = (y * width + x) * 4;
-        if (copy[offset + 3] < 20) continue;
-        const red = copy[offset];
-        const green = copy[offset + 1];
-        const blue = copy[offset + 2];
-        if (Math.max(red, green, blue) < 70) continue;
-        if (red > 230 && green > 230 && blue > 230) continue;
-        const detail = green < 120;
-        const part = fishRole(box, x, y);
-        const rx = (x - box.x) / box.w;
-        const ry = (y - box.y) / box.h;
-        let color = "#ffe14a";
-        if (kind === "yellow") color = part === "body" ? "#ffe14a" : (detail ? "#d86e08" : "#f08a14");
-        else if (kind === "costume") color = part === "mouth" ? "#f08a14" : (detail ? "#c41616" : "#ef3b3b");
-        else if (part === "mouth") color = "#f08a14";
-        else if (part === "fin" && rx < 0.255) color = detail ? "#c41616" : "#ef3b3b";
-        else if (ry > 0.60) color = "#ef3b3b";
-        else if (rx > 0.66) color = "#2f6fed";
-        else color = "#ffe14a";
-        const value = parseInt(color.slice(1), 16);
-        copy[offset] = (value >> 16) & 255;
-        copy[offset + 1] = (value >> 8) & 255;
-        copy[offset + 2] = value & 255;
-      }
-    }
-    if (kind !== "costume") paintBelly(copy, width, height, box);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.putImageData(new ImageData(copy, width, height), 0, 0);
-    if (kind === "costume") paintHat(ctx, box);
-    return canvas;
-  }
-
   function bodyPlate(canvas) {
     const width = canvas.width;
     const height = canvas.height;
@@ -316,7 +203,10 @@
   function buildPacks(source) {
     const oldPlate = badge;
     ["costume", "yellow", "colors"].forEach(function (kind) {
-      const canvas = recolor(source, kind);
+      const canvas = document.createElement("canvas");
+      canvas.width = source.width;
+      canvas.height = source.height;
+      canvas.getContext("2d").drawImage(source, 0, 0);
       coverPlate(canvas, oldPlate);
       const plate = bodyPlate(canvas);
       packs[kind] = {
@@ -816,7 +706,9 @@
 
   function poseHat(look, tilt) {
     if (!tilt) return look;
-    if (look._pose) return look._pose;
+    const key = String(tilt);
+    if (!look._poses) look._poses = {};
+    if (look._poses[key]) return look._poses[key];
     const src = look.canvas;
     const cos = Math.abs(Math.cos(tilt));
     const sin = Math.abs(Math.sin(tilt));
@@ -827,8 +719,8 @@
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(tilt);
     ctx.drawImage(src, -src.width / 2, -src.height / 2);
-    look._pose = hatMetrics(canvas);
-    return look._pose;
+    look._poses[key] = hatMetrics(canvas);
+    return look._poses[key];
   }
 
   function planFrogHat(picture, frame, clip) {
@@ -844,6 +736,492 @@
     const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
     const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
     const seatY = head.pupilCy - head.pupilW * fit.above;
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
+  // drop tucks the opening onto the skull, in pupil-widths below the crown.
+  // back shifts the opening toward the spines. tilt tips a brim down over the snout.
+  const SEA_HAT_FIT = {
+    3: { mul: 2.05, drop: 0.85, back: 1.05, ax: 0.46, tilt: 0.1 },
+    22: { mul: 1.7, drop: 0.52, back: .8, ax: 0.5, tilt: 0 },
+    40: { mul: 2.15, drop: 0.6, back: 1.1, ax: 0.5, tilt: 0.06 },
+    49: { mul: 1.85, drop: 0.52, back: 0.8, ax: 0.5, tilt: .1 },
+    19: { mul: 1.95, drop: 0.45, back: 0.6, ax: 0.5, tilt: 0 },
+    12: { mul: 1.85, drop: 0.37, back: 0.8, ax: 0.5, tilt: .1 },
+    9: { mul: 1.6, drop: 0.3, back: 0.2, ax: 0.62, tilt: 0 },
+    44: { mul: 1.65, drop: 0.37, back: 0.8, ax: 0.42, tilt: .3 },
+  };
+
+  function seahorseHead(canvas) {
+    if (canvas._seaHead) return canvas._seaHead;
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.28);
+    const x1 = Math.floor(box.x + box.w * 0.8);
+    const y0 = Math.floor(box.y + box.h * 0.01);
+    const y1 = Math.floor(box.y + box.h * 0.3);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (sumN < 30 || blobW < 10 || blobH < 10 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.55;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.14;
+    const pupilW = pupil ? pupil.w : box.w * 0.12;
+    const pupilH = pupil ? pupil.h : pupilW;
+    const bandL = Math.max(0, Math.floor(pupilCx - pupilW * 0.28));
+    const bandR = Math.min(width - 1, Math.ceil(pupilCx + pupilW * 0.12));
+    const tops = [];
+    for (let x = bandL; x <= bandR; x += 1) {
+      for (let y = Math.max(0, y0 - 4); y < pupilCy; y += 1) {
+        if (data[(y * width + x) * 4 + 3] < 40) continue;
+        tops.push(y);
+        break;
+      }
+    }
+    tops.sort(function (a, b) { return a - b; });
+    const crownY = tops.length ? tops[Math.floor(tops.length * 0.45)] : pupilCy - pupilH;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.7;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    canvas._seaHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._seaHead;
+  }
+
+  function planSeahorseHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = seahorseHead(art);
+    if (!head) return null;
+    picture._frogHead = head;
+    const fit = SEA_HAT_FIT[frame] || { mul: 2, drop: 0.04, back: 0.16, ax: 0.5, tilt: 0 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.crownY + head.pupilW * (fit.drop || 0);
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
+  // drop tucks the opening onto the head, in pupil-widths below the crown.
+  // back shifts the opening toward the tail, clear of the snout and the dorsal fin.
+  const FISH_HAT_FIT = {
+    3: { mul: 1.7, drop: 0.28, back: 0.06, ax: 0.46, tilt: 0.1 },
+    22: { mul: 1.35, drop: 0.2, back: 0.02, ax: 0.5, tilt: 0 },
+    40: { mul: 1.7, drop: 0.1, back: 0.12, ax: 0.5, tilt: 0.04 },
+    49: { mul: 1.5, drop: 0.26, back: 0.04, ax: 0.5, tilt: 0 },
+    19: { mul: 1.55, drop: 0.16, back: 0.0, ax: 0.5, tilt: 0 },
+    12: { mul: 1.6, drop: 0.3, back: 0.04, ax: 0.5, tilt: 0 },
+    9: { mul: 1.45, drop: 0.22, back: 0.1, ax: 0.52, tilt: 0 },
+    44: { mul: 1.3, drop: 0.22, back: -0.58, ax: 0.36, tilt: 0 },
+  };
+
+  function fishHead(canvas) {
+    if (canvas._fishHead) return canvas._fishHead;
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.58);
+    const x1 = Math.floor(box.x + box.w * 0.96);
+    const y0 = Math.floor(box.y + box.h * 0.08);
+    const y1 = Math.floor(box.y + box.h * 0.62);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (sumN < 30 || blobW < 10 || blobH < 10 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.78;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.38;
+    const pupilW = pupil ? pupil.w : box.w * 0.1;
+    const pupilH = pupil ? pupil.h : pupilW;
+    const bandL = Math.max(0, Math.floor(pupilCx - pupilW * 0.08));
+    const bandR = Math.min(width - 1, Math.ceil(pupilCx + pupilW * 0.2));
+    const tops = [];
+    for (let x = bandL; x <= bandR; x += 1) {
+      for (let y = box.y; y < pupilCy; y += 1) {
+        if (data[(y * width + x) * 4 + 3] < 40) continue;
+        tops.push(y);
+        break;
+      }
+    }
+    tops.sort(function (a, b) { return a - b; });
+    const crownY = tops.length ? tops[Math.floor(tops.length * 0.72)] : pupilCy - pupilH;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.7;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    canvas._fishHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._fishHead;
+  }
+
+  function planFishHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = fishHead(art);
+    if (!head) return null;
+    picture._frogHead = head;
+    const fit = FISH_HAT_FIT[frame] || { mul: 1.7, drop: 0.06, back: 0.14, ax: 0.5, tilt: 0 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.crownY + head.pupilW * (fit.drop || 0);
+    return {
+      canvas: look.canvas,
+      x: seatX - ax * hatW,
+      y: seatY - wear * hatH,
+      w: hatW,
+      h: hatH,
+    };
+  }
+
+  // drop tucks the opening onto the crown, in pupil-widths below the top of the head.
+  // back shifts the opening toward the shell, clear of the snout.
+  const TURTLE_HAT_FIT = {
+    3: { mul: 2.05, drop: 0.16, back: 0.9, ax: 0.46, tilt: 0.12 },
+    22: { mul: 1.65, drop: 0.06, back: 0.75, ax: 0.5, tilt: 0 },
+    40: { mul: 1.95, drop: 0.0, back: 0.8, ax: 0.5, tilt: 0.06 },
+    49: { mul: 1.75, drop: 0.14, back: 0.8, ax: 0.5, tilt: 0 },
+    19: { mul: 1.8, drop: 0.04, back: 0.6, ax: 0.5, tilt: 0 },
+    12: { mul: 1.85, drop: 0.1, back: 0.75, ax: 0.5, tilt: 0.05 },
+    9: { mul: 1.65, drop: 0.08, back: 0.5, ax: 0.55, tilt: 0 },
+    44: { mul: 1.45, drop: 0.08, back: 0.85, ax: 0.42, tilt: 0 },
+  };
+
+  function turtleHead(canvas) {
+    if (canvas._turtleHead) return canvas._turtleHead;
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const box = measureOpaque(canvas);
+    const x0 = Math.floor(box.x + box.w * 0.62);
+    const x1 = Math.floor(box.x + box.w * 0.98);
+    const y0 = Math.floor(box.y + box.h * 0.04);
+    const y1 = Math.floor(box.y + box.h * 0.58);
+    const dark = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const offset = (y * width + x) * 4;
+        if (data[offset + 3] < 220) continue;
+        if (Math.max(data[offset], data[offset + 1], data[offset + 2]) > 42) continue;
+        dark[y * width + x] = 1;
+      }
+    }
+    const seen = new Uint8Array(width * height);
+    let pupil = null;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const start = y * width + x;
+        if (!dark[start] || seen[start]) continue;
+        const stack = [start];
+        seen[start] = 1;
+        let minX = x;
+        let minY = y;
+        let maxX = x;
+        let maxY = y;
+        let interior = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let sumN = 0;
+        while (stack.length) {
+          const index = stack.pop();
+          const px = index % width;
+          const py = (index / width) | 0;
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+          const filled = dark[index - 1] && dark[index + 1] && dark[index - width] && dark[index + width];
+          if (filled) {
+            interior += 1;
+            sumX += px;
+            sumY += py;
+            sumN += 1;
+          }
+          const next = [index - 1, index + 1, index - width, index + width];
+          for (let side = 0; side < 4; side += 1) {
+            const ni = next[side];
+            if (ni < 0 || ni >= dark.length || seen[ni] || !dark[ni]) continue;
+            if (side < 2 && ((ni / width) | 0) !== py) continue;
+            seen[ni] = 1;
+            stack.push(ni);
+          }
+        }
+        const blobW = maxX - minX;
+        const blobH = maxY - minY;
+        if (sumN < 12 || blobW < 6 || blobH < 6 || blobW > blobH * 1.8 || blobH > blobW * 1.8) continue;
+        if (!pupil || interior > pupil.interior) {
+          pupil = { interior: interior, cx: sumX / sumN, cy: sumY / sumN, w: blobW, h: blobH };
+        }
+      }
+    }
+    const pupilCx = pupil ? pupil.cx : box.x + box.w * 0.78;
+    const pupilCy = pupil ? pupil.cy : box.y + box.h * 0.32;
+    const pupilW = pupil ? pupil.w : box.w * 0.11;
+    const pupilH = pupil ? pupil.h : pupilW;
+    const bandL = Math.max(0, Math.floor(pupilCx - pupilW * 0.45));
+    const bandR = Math.min(width - 1, Math.ceil(pupilCx + pupilW * 0.02));
+    const tops = [];
+    for (let x = bandL; x <= bandR; x += 1) {
+      for (let y = box.y; y < pupilCy; y += 1) {
+        if (data[(y * width + x) * 4 + 3] < 40) continue;
+        tops.push(y);
+        break;
+      }
+    }
+    tops.sort(function (a, b) { return a - b; });
+    const crownY = tops.length ? tops[Math.floor(tops.length * 0.62)] : pupilCy - pupilH;
+    function whiteAt(x, y) {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const offset = (y * width + x) * 4;
+      return data[offset + 3] > 180 && data[offset] > 220 && data[offset + 1] > 220 && data[offset + 2] > 220;
+    }
+    const cap = Math.max(pupilW, pupilH) * 1.7;
+    const cx = Math.round(pupilCx);
+    const cy = Math.round(pupilCy);
+    let eyeTop = Math.round(pupilCy - pupilH * 0.5);
+    let eyeBottom = Math.round(pupilCy + pupilH * 0.5);
+    let eyeLeft = Math.round(pupilCx - pupilW * 0.5);
+    let eyeRight = Math.round(pupilCx + pupilW * 0.5);
+    for (let y = eyeTop; y > cy - cap && y > box.y; y -= 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeTop = y;
+    }
+    for (let y = eyeBottom; y < cy + cap && y < box.y + box.h; y += 1) {
+      if (!whiteAt(cx, y)) break;
+      eyeBottom = y;
+    }
+    for (let x = eyeLeft; x > cx - cap && x > box.x; x -= 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeLeft = x;
+    }
+    for (let x = eyeRight; x < cx + cap && x < box.x + box.w; x += 1) {
+      if (!whiteAt(x, cy)) break;
+      eyeRight = x;
+    }
+    canvas._turtleHead = {
+      crownY: crownY,
+      pupilCx: pupilCx,
+      pupilCy: pupilCy,
+      pupilW: pupilW,
+      pupilH: pupilH,
+      eyeLeft: eyeLeft,
+      eyeRight: eyeRight,
+      eyeTop: eyeTop,
+      eyeBottom: eyeBottom,
+    };
+    return canvas._turtleHead;
+  }
+
+  function planTurtleHat(picture, frame, clip) {
+    const looks = ensureFrogLooks(clip);
+    const sourceLook = looks && looks[frame];
+    if (!sourceLook) return null;
+    const head = turtleHead(art);
+    if (!head) return null;
+    picture._frogHead = head;
+    const fit = TURTLE_HAT_FIT[frame] || { mul: 1.9, drop: 0.16, back: 0.1, ax: 0.5, tilt: 0 };
+    const look = poseHat(sourceLook, fit.tilt || 0);
+    const ax = fit.ax == null ? look.ax : fit.ax;
+    const wear = fit.wear == null ? look.wear : fit.wear;
+    const hatW = head.pupilW * fit.mul;
+    const hatH = hatW * (look.canvas.height / Math.max(1, look.canvas.width));
+    const seatX = head.pupilCx - head.pupilW * (fit.back || 0);
+    const seatY = head.crownY + head.pupilW * (fit.drop || 0);
     return {
       canvas: look.canvas,
       x: seatX - ax * hatW,
@@ -897,7 +1275,7 @@
 
   function stampNumber(digit, label, source, lookFrame, lookHost) {
     const picture = source || art;
-    const hat = lookFrame && lookHost ? planFrogHat(picture, lookFrame, lookHost) : null;
+    const hat = lookFrame && lookHost ? (active === "seahorse" ? planSeahorseHat(picture, lookFrame, lookHost) : active === "turtle" ? planTurtleHat(picture, lookFrame, lookHost) : species === "fish" ? planFishHat(picture, lookFrame, lookHost) : planFrogHat(picture, lookFrame, lookHost)) : null;
     const padX = hat ? Math.max(0, Math.ceil(-hat.x)) : 0;
     const padY = hat ? Math.max(0, Math.ceil(-hat.y)) : 0;
     const extraR = hat ? Math.max(0, Math.ceil(hat.x + hat.w - picture.width)) : 0;
@@ -1100,9 +1478,13 @@
     let host = body;
     let inCard = false;
     let inRace = false;
+    let fieldScale = 1;
     while (host) {
       if (host.name === "choiceToggle") inCard = true;
-      if (/^character\d/.test(host.name || "")) inRace = true;
+      if (/^character\d/.test(host.name || "")) {
+        inRace = true;
+        fieldScale = Math.abs(host.scaleX || 1);
+      }
       host = host.parent;
     }
     const span = fishOpaque();
@@ -1115,8 +1497,11 @@
       const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
       scale = targetW / span.w;
     }
+    // A full start line scales every racer down. Give the other species a little of that size back.
+    if (inRace && fieldScale <= 0.505) scale *= 1.12;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
+    if (active === "turtle") paintTurtle(bitmap, inRace && racing);
     if (inCard) {
       let center = anchor;
       if (colour && colourBounds) {
@@ -1131,8 +1516,10 @@
         bitmap.scaleX = fitted;
         bitmap.scaleY = fitted;
       }
-      bitmap.regX = span.x + span.w / 2;
-      bitmap.regY = span.y + span.h / 2;
+      const cardPadX = bitmap.image && bitmap.image._padX ? bitmap.image._padX : 0;
+      const cardPadY = bitmap.image && bitmap.image._padY ? bitmap.image._padY : 0;
+      bitmap.regX = span.x + span.w / 2 + cardPadX;
+      bitmap.regY = span.y + span.h / 2 + cardPadY;
       bitmap.x = center.x;
       bitmap.y = center.y;
       return;
@@ -1141,8 +1528,8 @@
     const padX = bitmap.image && bitmap.image._padX ? bitmap.image._padX : 0;
     const padY = bitmap.image && bitmap.image._padY ? bitmap.image._padY : 0;
     if (active === "seahorse") {
-      bitmap.regX = span.x + span.w / 2;
-      bitmap.regY = span.y + span.h / 2;
+      bitmap.regX = span.x + span.w / 2 + padX;
+      bitmap.regY = span.y + span.h / 2 + padY;
     } else if (pivot) {
       bitmap.regX = pivot.x + padX;
       bitmap.regY = pivot.y + padY;
@@ -1154,8 +1541,7 @@
     bitmap.y = anchor.y;
     bitmap.rotation = 0;
     if (active === "frog" && inRace && racing) hopFrog(bitmap, anchor, colourBounds ? colourBounds.height * 0.22 : 18);
-    else if (active === "turtle" && inRace && racing) paddleTurtle(bitmap);
-    else if (bitmap._plate && bitmap.image !== bitmap._plate) bitmap.image = bitmap._plate;
+    else if (active !== "turtle" && bitmap._plate && bitmap.image !== bitmap._plate) bitmap.image = bitmap._plate;
     hideLaneNumber(body);
     if (active === "frog") placeFrogName(body, bitmap);
   }
@@ -1262,202 +1648,79 @@
     return bitmap;
   }
 
-  function pointInPolygon(x, y, points) {
-    let inside = false;
-    for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
-      const yi = points[i][1];
-      const yj = points[j][1];
-      const xi = points[i][0];
-      const xj = points[j][0];
-      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1) + xi) inside = !inside;
-    }
-    return inside;
+  function turtleLimb(canvas, box, place, scale) {
+    const bounds = measureOpaque(canvas);
+    return {
+      canvas: canvas,
+      x: box.x + box.w * place.x,
+      y: box.y + box.h * place.y,
+      w: canvas.width * scale,
+      h: canvas.height * scale,
+      pivotX: (bounds.x + bounds.w / 2) * scale,
+      pivotY: bounds.y * scale,
+      swing: place.swing,
+    };
   }
 
-  function turtleLimbs(source) {
-    const box = measureOpaque(source);
-    const specs = [
-      {
-        pivot: [0.14, 0.63],
-        polygon: [[0.00, 0.63], [0.18, 0.60], [0.20, 0.82], [0.12, 0.97], [0.00, 0.90]],
-      },
-      {
-        pivot: [0.56, 0.73],
-        polygon: [[0.50, 0.73], [0.76, 0.70], [0.78, 0.92], [0.58, 1.02], [0.48, 0.90]],
-      },
+  function attachTurtleLegs(body, front, hind) {
+    const box = measureOpaque(body);
+    const frontBounds = measureOpaque(front);
+    const scale = (box.h * 0.36) / frontBounds.h;
+    packs.turtle.limbs = [
+      turtleLimb(hind, box, { x: 0.15, y: 0.75, swing: 0.52 }, scale),
+      turtleLimb(front, box, { x: 0.62, y: 0.75, swing: -0.58 }, scale),
     ];
-    const image = source.getContext("2d").getImageData(0, 0, source.width, source.height);
-    const data = image.data;
-    return specs.map(function (spec) {
-      const points = spec.polygon.map(function (point) {
-        return [box.x + point[0] * box.w, box.y + point[1] * box.h];
-      });
-      let minX = source.width;
-      let minY = source.height;
-      let maxX = 0;
-      let maxY = 0;
-      points.forEach(function (point) {
-        minX = Math.min(minX, point[0]);
-        minY = Math.min(minY, point[1]);
-        maxX = Math.max(maxX, point[0]);
-        maxY = Math.max(maxY, point[1]);
-      });
-      minX = Math.max(0, Math.floor(minX) - 8);
-      minY = Math.max(0, Math.floor(minY) - 8);
-      maxX = Math.min(source.width - 1, Math.ceil(maxX) + 8);
-      maxY = Math.min(source.height - 1, Math.ceil(maxY) + 8);
-      const mask = new Uint8Array(source.width * source.height);
-      for (let y = minY; y <= maxY; y += 1) {
-        for (let x = minX; x <= maxX; x += 1) {
-          if (!pointInPolygon(x, y, points)) continue;
-          const from = (y * source.width + x) * 4;
-          if (data[from + 3] < 20) continue;
-          const red = data[from];
-          const green = data[from + 1];
-          const blue = data[from + 2];
-          if (red > 220 && green > 220 && blue > 220) continue;
-          if (red > 180 && green > 150 && blue < 150) continue;
-          mask[y * source.width + x] = 1;
-        }
-      }
-      for (let pass = 0; pass < 6; pass += 1) {
-        const grow = [];
-        for (let y = minY; y <= maxY; y += 1) {
-          for (let x = minX; x <= maxX; x += 1) {
-            const index = y * source.width + x;
-            if (!mask[index]) continue;
-            for (let dy = -1; dy <= 1; dy += 1) {
-              for (let dx = -1; dx <= 1; dx += 1) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue;
-                const next = ny * source.width + nx;
-                if (mask[next]) continue;
-                const from = next * 4;
-                if (data[from + 3] < 20) continue;
-                if (Math.max(data[from], data[from + 1], data[from + 2]) > 80) continue;
-                grow.push(next);
-              }
-            }
-          }
-        }
-        grow.forEach(function (index) { mask[index] = 1; });
-      }
-      let cutMinX = source.width;
-      let cutMinY = source.height;
-      let cutMaxX = 0;
-      let cutMaxY = 0;
-      for (let y = minY; y <= maxY; y += 1) {
-        for (let x = minX; x <= maxX; x += 1) {
-          if (!mask[y * source.width + x]) continue;
-          if (x < cutMinX) cutMinX = x;
-          if (y < cutMinY) cutMinY = y;
-          if (x > cutMaxX) cutMaxX = x;
-          if (y > cutMaxY) cutMaxY = y;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, cutMaxX - cutMinX + 1);
-      canvas.height = Math.max(1, cutMaxY - cutMinY + 1);
-      const cut = canvas.getContext("2d").createImageData(canvas.width, canvas.height);
-      for (let y = cutMinY; y <= cutMaxY; y += 1) {
-        for (let x = cutMinX; x <= cutMaxX; x += 1) {
-          if (!mask[y * source.width + x]) continue;
-          const from = (y * source.width + x) * 4;
-          const to = ((y - cutMinY) * canvas.width + (x - cutMinX)) * 4;
-          cut.data[to] = data[from];
-          cut.data[to + 1] = data[from + 1];
-          cut.data[to + 2] = data[from + 2];
-          cut.data[to + 3] = data[from + 3];
-        }
-      }
-      canvas.getContext("2d").putImageData(cut, 0, 0);
-      const absX = box.x + spec.pivot[0] * box.w;
-      const absY = box.y + spec.pivot[1] * box.h;
-      return { canvas: canvas, mask: mask, pivotX: absX - cutMinX, pivotY: absY - cutMinY, absX: absX, absY: absY };
-    });
+    packs.turtle.preview = composeTurtle(body, 0, 28);
   }
 
-  function eraseTurtleLegs(plate) {
-    const legs = packs.turtle && packs.turtle.legs;
+  function composeTurtle(body, swing, pad) {
     const canvas = document.createElement("canvas");
-    canvas.width = plate.width;
-    canvas.height = plate.height;
+    canvas.width = body.width + pad * 2;
+    canvas.height = body.height + pad * 2;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(plate, 0, 0);
-    if (!legs) return canvas;
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = image.data;
-    legs.forEach(function (leg) {
-      if (!leg.mask || leg.mask.length !== data.length / 4) return;
-      for (let index = 0; index < leg.mask.length; index += 1) {
-        if (leg.mask[index]) data[index * 4 + 3] = 0;
-      }
+    ctx.drawImage(body, pad, pad);
+    (packs.turtle.limbs || []).forEach(function (leg) {
+      ctx.save();
+      ctx.translate(pad + leg.x, pad + leg.y);
+      ctx.rotate(swing * leg.swing);
+      ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY, leg.w, leg.h);
+      ctx.restore();
     });
-    ctx.putImageData(image, 0, 0);
     return canvas;
   }
 
-  function paddleTurtle(bitmap) {
-    const legs = packs.turtle && packs.turtle.legs;
+  function paintTurtle(bitmap, moving) {
+    const pack = packs.turtle;
     const plate = bitmap._plate;
-    if (!legs || !plate) return;
-    if (!bitmap._body) bitmap._body = eraseTurtleLegs(plate);
-    if (!bitmap._paddle) {
+    if (!pack || !pack.limbs || !plate) return;
+    const pad = 36;
+    const width = plate.width + pad * 2;
+    const height = plate.height + pad * 2;
+    if (!bitmap._paddle || bitmap._paddle.width !== width || bitmap._paddle.height !== height) {
       bitmap._paddle = document.createElement("canvas");
-      bitmap._paddle.width = plate.width;
-      bitmap._paddle.height = plate.height;
+      bitmap._paddle.width = width;
+      bitmap._paddle.height = height;
     }
     if (bitmap._hopPhase == null) {
       const match = String(bitmap._number || "").match(/(\d)\s*$/);
       bitmap._hopPhase = match ? Number(match[1]) * 0.37 : 0;
     }
-    const swing = Math.sin(Date.now() / 150 + bitmap._hopPhase * Math.PI * 2);
+    const swing = moving ? Math.sin(Date.now() / 150 + bitmap._hopPhase * Math.PI * 2) : 0;
+    const originX = pad + (plate._padX || 0);
+    const originY = pad + (plate._padY || 0);
+    bitmap._paddle._padX = originX;
+    bitmap._paddle._padY = originY;
     const ctx = bitmap._paddle.getContext("2d");
-    ctx.clearRect(0, 0, bitmap._paddle.width, bitmap._paddle.height);
-    ctx.drawImage(bitmap._body, 0, 0);
-    legs.forEach(function (leg, index) {
-      const angle = swing * (index === 0 ? 0.5 : -0.58);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(plate, pad, pad);
+    pack.limbs.forEach(function (leg) {
       ctx.save();
-      ctx.translate(leg.absX, leg.absY);
-      ctx.rotate(angle);
-      ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY);
+      ctx.translate(originX + leg.x, originY + leg.y);
+      ctx.rotate(swing * leg.swing);
+      ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY, leg.w, leg.h);
       ctx.restore();
-      mendTurtleJoint(ctx, plate, leg.absX, leg.absY, 58);
     });
     bitmap.image = bitmap._paddle;
-  }
-
-  function mendTurtleJoint(ctx, plate, cx, cy, radius) {
-    const x0 = Math.max(0, Math.floor(cx - radius));
-    const y0 = Math.max(0, Math.floor(cy - radius));
-    const x1 = Math.min(ctx.canvas.width, Math.ceil(cx + radius));
-    const y1 = Math.min(ctx.canvas.height, Math.ceil(cy + radius));
-    const width = x1 - x0;
-    const height = y1 - y0;
-    if (width <= 0 || height <= 0) return;
-    const source = plate.getContext("2d").getImageData(x0, y0, width, height).data;
-    const image = ctx.getImageData(x0, y0, width, height);
-    const data = image.data;
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const dx = x0 + x - cx;
-        const dy = y0 + y - cy;
-        if (dx * dx + dy * dy > radius * radius) continue;
-        const index = (y * width + x) * 4;
-        if (source[index + 3] < 20) continue;
-        const red = source[index];
-        const green = source[index + 1];
-        const blue = source[index + 2];
-        if (Math.max(red, green, blue) < 90) continue;
-        if (red > 220 && green > 220 && blue > 220) continue;
-        data[index] = red;
-        data[index + 1] = green;
-        data[index + 2] = blue;
-        data[index + 3] = source[index + 3];
-      }
-    }
-    ctx.putImageData(image, x0, y0);
   }
 
   let wetArt = null;
@@ -1536,7 +1799,7 @@
       }
       host = host.parent;
     }
-    const lookFrame = active === "frog" ? frogLookFrame(node, label) : 0;
+    const lookFrame = active === "frog" || ((active === "seahorse" || active === "turtle" || species === "fish") && hatsLive) ? frogLookFrame(node, label) : 0;
     const color = active === "frog" ? frogColor(node) : 0;
     const number = active + ":" + (digit ? "d" + digit.id : "n" + (label || "1")) + (picture ? ":wet" : "") + (lookFrame ? ":look" + lookFrame : "") + (color ? ":c" + color : "");
     if (color) picture = tintFrog(picture || art, color);
@@ -1799,7 +2062,10 @@
     if (!speciesBar || !speciesBitmap || !speciesBitmap.image) return;
     if (!speciesBar.parent) window.exportRoot.addChild(speciesBar);
     speciesBar.visible = show;
-    if (!show) return;
+    if (!show) {
+      if (habitatBar) habitatBar.visible = false;
+      return;
+    }
     const stage = window.stage;
     const sx = stage.scaleX || 1;
     const sy = stage.scaleY || 1;
@@ -1819,6 +2085,125 @@
     speciesBar.x = top.x + ((bottom.x - top.x) - w) / 2;
     speciesBar.y = bottom.y - h - (8 * ratio / sy);
     speciesBar.parent.setChildIndex(speciesBar, speciesBar.parent.numChildren - 1);
+    placeHabitat(show, top, bottom, sx, sy, ratio);
+  }
+
+  let habitatBar = null;
+  let habitatBitmap = null;
+  let habitatSlots = [];
+  let habitatStamp = "";
+
+  function paintHabitatBar() {
+    const api = window.duckHabitats;
+    if (!api || !window.createjs || !window.exportRoot) return;
+    const kinds = api.order;
+    const pixel = 2;
+    const cardW = 142;
+    const cardH = 88;
+    const gap = 7;
+    const pad = 8;
+    const barW = pad * 2 + cardW;
+    const barH = pad * 2 + kinds.length * cardH + (kinds.length - 1) * gap;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(barW * pixel);
+    canvas.height = Math.ceil(barH * pixel);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixel, pixel);
+    ctx.save();
+    ctx.shadowColor = "rgba(24, 58, 82, 0.22)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    roundBar(ctx, 1, 1, barW - 2, barH - 2, 20);
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
+    ctx.fill();
+    ctx.restore();
+    roundBar(ctx, 1, 1, barW - 2, barH - 2, 20);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(186,214,232,0.95)";
+    ctx.stroke();
+    habitatSlots = [];
+    kinds.forEach(function (kind, index) {
+      const x = pad;
+      const y = pad + index * (cardH + gap);
+      const selected = kind === api.current();
+      roundBar(ctx, x, y, cardW, cardH, 14);
+      ctx.fillStyle = selected ? "#e7f3ff" : "#f8fbfe";
+      ctx.fill();
+      ctx.save();
+      roundBar(ctx, x + 6, y + 6, cardW - 12, 48, 9);
+      ctx.clip();
+      const thumb = document.createElement("canvas");
+      thumb.width = cardW - 12;
+      thumb.height = 48;
+      api.paint(thumb.getContext("2d"), thumb.width, thumb.height, kind);
+      ctx.drawImage(thumb, x + 6, y + 6, cardW - 12, 48);
+      ctx.restore();
+      ctx.strokeStyle = selected ? "#2f86c4" : "rgba(186,214,232,0.9)";
+      ctx.lineWidth = selected ? 2.5 : 1;
+      roundBar(ctx, x, y, cardW, cardH, 14);
+      ctx.stroke();
+      ctx.fillStyle = "#1f3d57";
+      ctx.font = "700 14px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(api.labels[kind], x + cardW / 2, y + 66);
+      ctx.fillStyle = "#6d8798";
+      ctx.font = "11px 'Segoe UI', Arial, sans-serif";
+      ctx.fillText(api.suits[kind], x + cardW / 2, y + 80);
+      habitatSlots.push({ kind: kind, x: x * pixel, y: y * pixel, w: cardW * pixel, h: cardH * pixel });
+    });
+    if (!habitatBar) {
+      habitatBar = new createjs.Container();
+      habitatBar.name = "habitatBar";
+      habitatBar.cursor = "pointer";
+      habitatBar.mouseChildren = false;
+      habitatBitmap = new createjs.Bitmap(canvas);
+      habitatBar.addChild(habitatBitmap);
+      habitatBar.on("mousedown", function (evt) {
+        if (!habitatBitmap || !window.duckHabitats) return;
+        const local = habitatBitmap.globalToLocal(evt.stageX, evt.stageY);
+        const slot = habitatSlots.find(function (item) {
+          return local.x >= item.x && local.x < item.x + item.w && local.y >= item.y && local.y < item.y + item.h;
+        });
+        if (slot) window.duckHabitats.select(slot.kind);
+      });
+      window.exportRoot.addChild(habitatBar);
+    } else {
+      habitatBitmap.image = canvas;
+      if (habitatBitmap.sourceRect) habitatBitmap.sourceRect = null;
+    }
+    habitatBar._layoutW = barW;
+    habitatBar._layoutH = barH;
+    habitatStamp = api.current();
+  }
+
+  function placeHabitat(show, top, bottom, sx, sy, ratio) {
+    const api = window.duckHabitats;
+    if (!api) return;
+    if (!show) {
+      if (habitatBar) habitatBar.visible = false;
+      return;
+    }
+    if (!habitatBar || habitatStamp !== api.current()) paintHabitatBar();
+    if (!habitatBar || !habitatBitmap || !habitatBitmap.image || !speciesBar) return;
+    if (!habitatBar.parent) window.exportRoot.addChild(habitatBar);
+    habitatBar.visible = true;
+    const pixel = 2;
+    const marginX = 14 * ratio / sx;
+    const marginY = 12 * ratio / sy;
+    const viewW = bottom.x - top.x;
+    const bandTop = top.y + marginY;
+    const bandH = Math.max(80, speciesBar.y - marginY - bandTop);
+    const maxW = viewW * 0.145 - marginX;
+    let fit = Math.min(1, (maxW * sx) / (habitatBar._layoutW * ratio), (bandH * sy) / (habitatBar._layoutH * ratio));
+    if (!Number.isFinite(fit) || fit <= 0) fit = 1;
+    habitatBitmap.scaleX = ratio * fit / (pixel * sx);
+    habitatBitmap.scaleY = ratio * fit / (pixel * sy);
+    const w = habitatBar._layoutW * ratio * fit / sx;
+    const h = habitatBar._layoutH * ratio * fit / sy;
+    habitatBar.x = bottom.x - w - marginX;
+    habitatBar.y = bandTop + Math.max(0, (bandH - h) / 2);
+    habitatBar.parent.setChildIndex(habitatBar, habitatBar.parent.numChildren - 1);
   }
 
   function countRaceBodies(node) {
@@ -1848,7 +2233,7 @@
     stage.update = function () {
       readRacing();
       const settings = findSettings();
-      const onTrack = species === "frog" && (racing || (settings && settings.visible === false));
+      const onTrack = (species === "frog" || species === "seahorse" || species === "fish" || species === "turtle") && (racing || (settings && settings.visible === false));
       if (!onTrack) {
         if (hatsLive) {
           hatsLive = false;
@@ -1945,8 +2330,9 @@
       const bounds = fishBounds(packs.frog.canvas);
       ctx.drawImage(packs.frog.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 6, 8, 52, 48);
     } else if (kind === "turtle" && packs.turtle) {
-      const bounds = fishBounds(packs.turtle.canvas);
-      ctx.drawImage(packs.turtle.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 2, 16, 60, 34);
+      const source = packs.turtle.preview || packs.turtle.canvas;
+      const bounds = fishBounds(source);
+      ctx.drawImage(source, bounds.x, bounds.y, bounds.w, bounds.h, 2, 16, 60, 34);
     } else if (kind === "seahorse" && packs.seahorse) {
       const bounds = fishBounds(packs.seahorse.canvas);
       const dw = Math.max(8, Math.round(56 * bounds.w / bounds.h));
@@ -1964,6 +2350,7 @@
     if (next === species) return;
     species = next;
     localStorage.setItem(SPECIES_KEY, species);
+    if (window.duckHabitats) window.duckHabitats.select(window.duckHabitats.forSpecies(species));
     if (species === "duck" && window.exportRoot) restore(window.exportRoot);
     if (window.stage) window.stage.update();
     syncToggle();
@@ -1982,15 +2369,17 @@
     let fishReady = null;
     let frogReady = null;
     let turtleReady = null;
+    let frontLeg = null;
+    let hindLeg = null;
     let seahorseReady = null;
     let fishBadge = null;
     function tryBoot() {
-      if (!fishReady || !frogReady || !turtleReady || !seahorseReady || !fishBadge) return;
+      if (!fishReady || !frogReady || !turtleReady || !frontLeg || !hindLeg || !seahorseReady || !fishBadge) return;
       badge = fishBadge;
       buildPacks(fishReady);
       prepareAnimal(frogReady, "frog", { x: 0.08, y: 0.42, w: 0.16, h: 0.18 });
       prepareAnimal(turtleReady, "turtle", { x: 0.16, y: 0.46, w: 0.14, h: 0.22 });
-      packs.turtle.legs = turtleLimbs(packs.turtle.canvas);
+      attachTurtleLegs(packs.turtle.canvas, frontLeg, hindLeg);
       prepareAnimal(seahorseReady, "seahorse", { x: 0.38, y: 0.37, w: 0.26, h: 0.13 });
       useStyle(species === "frog" || species === "turtle" || species === "seahorse" ? species : "yellow");
       mountToggle();
@@ -2014,8 +2403,16 @@
       frogReady = canvas;
       tryBoot();
     });
-    load("turtle-ref.jpg", function (canvas) {
+    load("turtle-body.png", function (canvas) {
       turtleReady = canvas;
+      tryBoot();
+    });
+    load("turtle-leg-front.png", function (canvas) {
+      frontLeg = canvas;
+      tryBoot();
+    });
+    load("turtle-leg-hind.png", function (canvas) {
+      hindLeg = canvas;
       tryBoot();
     });
     load("seahorse-ref.jpg", function (canvas) {

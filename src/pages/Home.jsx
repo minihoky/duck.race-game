@@ -23,12 +23,14 @@ export default function Home() {
           <span className="font-semibold">{room.title}:</span> {room.names.join(", ")}
         </div>
       )}
-      <div id="game" className="relative h-[calc(100vh-16px)] p-1 md:p-3">
-        <iframe
-          title="duck race timers game"
-          src="/game/index.html"
-          className="game-bezel h-full w-full"
-        />
+      <div id="game" className="game-stage">
+        <div className="game-bezel">
+          <iframe
+            title="duck race timers game"
+            src="/game/index.html"
+            className="game-screen"
+          />
+        </div>
       </div>
 
       <section className="bg-white py-20">

@@ -230,7 +230,7 @@ function cleanNameList(value) {
   if (!Array.isArray(value)) return { error: "Add one name per line." };
   const names = value.map((item) => String(item || "").trim()).filter(Boolean);
   if (names.length < 2) return { error: "Add at least two names." };
-  if (names.length > 100) return { error: "An official race can include up to 100 names." };
+  if (names.length > 200) return { error: "An official race can include up to 200 names." };
   if (names.some((name) => name.length > 40)) return { error: "Each name can be at most 40 characters." };
   return { names };
 }
