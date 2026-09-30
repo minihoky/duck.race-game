@@ -81,42 +81,70 @@ function raceEnd(race) {
 }
 
 function settle(race, now = Date.now()) {
-  if (race.status === "finished") return false;
+  if (race.status !== "racing" || !race.startedAt) return false;
   if (now < raceEnd(race)) return false;
   race.status = "finished";
   race.finishedAt = raceEnd(race);
   return true;
 }
 
+function raceHasRun(race) {
+  return race.status === "racing" || race.status === "finished";
+}
+
 function presentRace(race) {
+  const visible = raceHasRun(race);
   return {
     id: race.id,
     name: race.name,
     names: race.entrants.map((entrant) => entrant.name),
-    entrants: race.entrants.map(({ name, lane, finishMs, place }) => ({ name, lane, finishMs, place })),
+    entrants: visible ? race.entrants.map(({ name, lane, finishMs, place }) => ({ name, lane, finishMs, place })) : [],
     sponsors: race.sponsors,
     status: race.status,
-    startedAt: race.startedAt,
+    startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
     durationMs: race.durationMs,
+    createdAt: race.createdAt || null,
     serverNow: Date.now(),
   };
 }
 
 function summarize(race) {
   const winner = race.entrants.find((entrant) => entrant.place === 1);
+  const visible = raceHasRun(race);
   return {
     id: race.id,
     name: race.name,
     names: race.entrants.map((entrant) => entrant.name),
-    winner: winner ? winner.name : "",
+    winner: visible && winner ? winner.name : "",
     status: race.status,
-    startedAt: race.startedAt,
+    startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
-    places: [...race.entrants]
-      .sort((a, b) => a.place - b.place)
-      .map((entrant) => ({ place: entrant.place, name: entrant.name })),
+    createdAt: race.createdAt || null,
+    places: visible
+      ? [...race.entrants]
+          .sort((a, b) => a.place - b.place)
+          .map((entrant) => ({ place: entrant.place, name: entrant.name }))
+      : [],
   };
+}
+
+const CREDIT_ERROR = "You need 1 credit to start an official race. Credits stay in Duck Race and cannot be transferred or refunded for cash.";
+
+export function applyRaceStart(user, race, now = Date.now()) {
+  if (race.status === "finished" || race.status === "racing") return { charged: false };
+  if (race.status !== "ready") return { status: 409, error: "This race cannot be started." };
+  if (race.creditUsed) {
+    race.status = "racing";
+    if (!race.startedAt) race.startedAt = now;
+    return { charged: false };
+  }
+  if ((user.credits || 0) < 1) return { status: 402, error: CREDIT_ERROR };
+  user.credits -= 1;
+  race.creditUsed = true;
+  race.status = "racing";
+  race.startedAt = now;
+  return { charged: true };
 }
 
 function ledgerView(entry) {
@@ -448,7 +476,7 @@ export async function handlePlatform(req, res, url, ctx) {
       }
       const history = races
         .slice()
-        .sort((a, b) => b.startedAt - a.startedAt)
+        .sort((a, b) => (b.startedAt || b.createdAt || 0) - (a.startedAt || a.createdAt || 0))
         .map(summarize);
       return { status: 200, persist: changed, races: history };
     });
@@ -457,7 +485,7 @@ export async function handlePlatform(req, res, url, ctx) {
   }
 
   if (req.method === "POST" && pathName === "/api/races") {
-    if (limited(`${ip}:race-start`)) {
+    if (limited(`${ip}:race-setup`)) {
       send(res, 429, { error: "Too many attempts. Wait a few minutes and try again." });
       return;
     }
@@ -467,28 +495,12 @@ export async function handlePlatform(req, res, url, ctx) {
       for (const race of state.races) {
         if (race.userId === user.id && settle(race)) changed = true;
       }
-      const active = state.races.find((race) => race.userId === user.id && race.status === "racing");
-      if (active) {
-        return {
-          status: 409,
-          persist: changed,
-          error: "An official race is already in progress.",
-          race: presentRace(active),
-        };
-      }
       const list = cleanNameList(body.names);
       if (list.error) return { status: 400, persist: changed, error: list.error };
       const durationSec = Number(body.durationSec);
       if (!DURATIONS.includes(durationSec)) return { status: 400, persist: changed, error: "Choose a race length from the list." };
       const title = String(body.name || "").trim() || "Official race";
       if (title.length > 60) return { status: 400, persist: changed, error: "The race name can be at most 60 characters." };
-      if (user.credits < 1) {
-        return {
-          status: 402,
-          persist: changed,
-          error: "You need 1 credit to start an official race. Credits stay in Duck Race and cannot be transferred or refunded for cash.",
-        };
-      }
       const requested = Array.isArray(body.sponsorIds) ? body.sponsorIds.map(String) : [];
       if (requested.length > 8) return { status: 400, persist: changed, error: "Choose up to 8 sponsor images." };
       const sponsors = [];
@@ -498,32 +510,70 @@ export async function handlePlatform(req, res, url, ctx) {
       }
       const seed = randomBytes(4).readUInt32BE(0);
       const durationMs = durationSec * 1000;
-      const startedAt = Date.now();
-      user.credits -= 1;
+      const createdAt = Date.now();
       const race = {
         id: id12(),
         userId: user.id,
         name: title,
         seed,
         durationMs,
-        startedAt,
+        createdAt,
+        startedAt: 0,
         finishedAt: 0,
-        status: "racing",
+        status: "ready",
+        creditUsed: false,
         entrants: buildEntrants(list.names, seed, durationMs),
         sponsors,
       };
       state.races.push(race);
-      state.ledger.push({
-        id: id12(),
-        userId: user.id,
-        type: "race",
-        credits: -1,
-        balance: user.credits,
-        note: title,
-        raceId: race.id,
-        createdAt: startedAt,
-      });
-      return { status: 201, race: presentRace(race), user: viewUser(user) };
+      return { status: 201, charged: false, race: presentRace(race), user: viewUser(user) };
+    });
+    reply(res, send, result);
+    return;
+  }
+
+  const startMatch = pathName.match(/^\/api\/races\/([A-Za-z0-9_-]{8,32})\/start$/);
+  if (req.method === "POST" && startMatch) {
+    if (limited(`${ip}:race-start`)) {
+      send(res, 429, { error: "Too many attempts. Wait a few minutes and try again." });
+      return;
+    }
+    await readBody(req);
+    const result = await mutate((state) => {
+      let changed = false;
+      for (const race of state.races) {
+        if (race.userId === user.id && settle(race)) changed = true;
+      }
+      const race = ownRace(state, user, startMatch[1]);
+      if (!race) return { status: 404, persist: changed, error: "That race result was not found." };
+      if (race.status === "finished" || race.status === "racing") {
+        return { status: 200, persist: changed, charged: false, race: presentRace(race), user: viewUser(user) };
+      }
+      const active = state.races.find((item) => item.userId === user.id && item.status === "racing" && item.id !== race.id);
+      if (active) {
+        return {
+          status: 409,
+          persist: changed,
+          error: "An official race is already in progress.",
+          race: presentRace(active),
+        };
+      }
+      const startedAt = Date.now();
+      const outcome = applyRaceStart(user, race, startedAt);
+      if (outcome.error) return { status: outcome.status, persist: changed, error: outcome.error };
+      if (outcome.charged) {
+        state.ledger.push({
+          id: id12(),
+          userId: user.id,
+          type: "race",
+          credits: -1,
+          balance: user.credits,
+          note: race.name,
+          raceId: race.id,
+          createdAt: startedAt,
+        });
+      }
+      return { status: 200, charged: Boolean(outcome.charged), race: presentRace(race), user: viewUser(user) };
     });
     reply(res, send, result);
     return;

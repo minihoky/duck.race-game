@@ -73,30 +73,23 @@ export default function History() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-lg font-semibold">{race.name}</h2>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${race.status === "racing" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
-                          {race.status === "racing" ? "On the clock" : "Finished"}
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${race.status === "racing" ? "bg-amber-100 text-amber-800" : race.status === "ready" ? "bg-gray-100 text-gray-700" : "bg-emerald-100 text-emerald-800"}`}>
+                          {race.status === "racing" ? "On the clock" : race.status === "ready" ? "Ready" : "Finished"}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-gray-500">{formatWhen(race.startedAt)}</p>
+                      <p className="mt-1 text-sm text-gray-500">{formatWhen(race.startedAt || race.createdAt)}</p>
                       <p className="mt-2 text-sm text-gray-700">{race.names.join(", ")}</p>
-                      <p className="mt-2 text-sm">
-                        <span className="font-semibold">Winner:</span> {race.winner || "Still racing"}
+                      <p className="mt-2 text-sm text-gray-600">
+                        {race.status === "ready"
+                          ? "Saved setup. One credit is used when this race starts in the game."
+                          : "Open the game again without using another credit."}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">Result ID {race.id}</p>
                     </div>
                     <Link to={`/race/${race.id}`} className="rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white">
-                      {race.status === "racing" ? "Resume" : "Replay"}
+                      {race.status === "ready" ? "Open game" : "Play again"}
                     </Link>
                   </div>
-                  {race.status === "finished" && (
-                    <ol className="mt-4 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
-                      {race.places.map((place) => (
-                        <li key={`${race.id}-${place.place}`}>
-                          {place.place}. {place.name}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
                 </li>
               ))}
             </ul>

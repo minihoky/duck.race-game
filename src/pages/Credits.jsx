@@ -67,7 +67,7 @@ export default function Credits() {
     <div className="mx-auto max-w-4xl px-4 pb-12 pt-20">
       <h1 className="text-4xl font-bold">Credits</h1>
       <p className="mt-3 max-w-2xl text-lg text-gray-600">
-        One credit is used automatically when an official race begins. Ten credits cover ten races. A saved result can be replayed without using another credit.
+        Setting up a race does not use a credit. One credit is used when that official race starts. Replaying a finished race does not use another credit. Ten credits cover ten races.
       </p>
       <p className="mt-3 max-w-2xl text-sm text-gray-600">
         Credits are only for use inside Duck Race. They cannot be withdrawn, transferred, or refunded for cash.
