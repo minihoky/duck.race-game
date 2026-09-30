@@ -1478,9 +1478,13 @@
     let host = body;
     let inCard = false;
     let inRace = false;
+    let fieldScale = 1;
     while (host) {
       if (host.name === "choiceToggle") inCard = true;
-      if (/^character\d/.test(host.name || "")) inRace = true;
+      if (/^character\d/.test(host.name || "")) {
+        inRace = true;
+        fieldScale = Math.abs(host.scaleX || 1);
+      }
       host = host.parent;
     }
     const span = fishOpaque();
@@ -1493,6 +1497,8 @@
       const targetW = colourBounds && colourBounds.width > 30 ? colourBounds.width * (inCard ? 0.58 : inRace ? 1.12 : 1.42) * fit : 150;
       scale = targetW / span.w;
     }
+    // A full start line scales every racer down. Give the other species a little of that size back.
+    if (inRace && fieldScale <= 0.505) scale *= 1.12;
     bitmap.scaleX = scale;
     bitmap.scaleY = scale;
     if (active === "turtle") paintTurtle(bitmap, inRace && racing);
