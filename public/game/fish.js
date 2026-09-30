@@ -1291,6 +1291,11 @@
       ctx.drawImage(hat.canvas, hat.x + padX, hat.y + padY, hat.w, hat.h);
       revealEye(ctx, picture, padX, padY);
     }
+    const plain = document.createElement("canvas");
+    plain.width = canvas.width;
+    plain.height = canvas.height;
+    plain.getContext("2d").drawImage(canvas, 0, 0);
+    canvas._plain = plain;
     if (!badge) return canvas;
     const width = canvas.width;
     const height = canvas.height;
@@ -1713,12 +1718,25 @@
     const ctx = bitmap._paddle.getContext("2d");
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(plate, pad, pad);
+    if (!bitmap._open || bitmap._open.width !== width || bitmap._open.height !== height) {
+      bitmap._open = document.createElement("canvas");
+      bitmap._open.width = width;
+      bitmap._open.height = height;
+    }
+    const open = bitmap._open.getContext("2d");
+    open.clearRect(0, 0, width, height);
+    open.drawImage(plate._plain || plate, pad, pad);
     pack.limbs.forEach(function (leg) {
       ctx.save();
+      open.save();
       ctx.translate(originX + leg.x, originY + leg.y);
+      open.translate(originX + leg.x, originY + leg.y);
       ctx.rotate(swing * leg.swing);
+      open.rotate(swing * leg.swing);
       ctx.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY, leg.w, leg.h);
+      open.drawImage(leg.canvas, -leg.pivotX, -leg.pivotY, leg.w, leg.h);
       ctx.restore();
+      open.restore();
     });
     bitmap.image = bitmap._paddle;
   }

@@ -1,6 +1,6 @@
 (function () {
   const LABELS = { duck: "Duck", fish: "Fish", frog: "Frog", turtle: "Turtle", seahorse: "Seahorse" };
-  const COLORS = ["#ffe56a", "#ff5d73", "#3ec6ff", "#7dffb2", "#d9a6ff", "#ff9a3c", "#fff6c8", "#ff77c8"];
+  const COLORS = ["#ffe56a", "#ff4d6d", "#3ec6ff", "#7dff6a", "#e879f9", "#ff9a3c", "#fff6c8", "#ff77c8", "#67e8f9", "#facc15"];
   let running = false;
   let shown = false;
   let overlay = null;
@@ -80,6 +80,7 @@
       number: /^\d+$/.test(direct) ? direct : (numberNode ? String(numberNode.text).trim() : ""),
       name: nameNode ? String(nameNode.text).trim() : "",
       x: placeOf(node),
+      node: node,
     };
   }
 
@@ -96,37 +97,99 @@
     return {
       name: chosen.name || winnerName || "Winner",
       number: chosen.number || "",
+      node: chosen.node || null,
     };
   }
 
-  function animalArt(kind) {
-    const art = {
-      duck: '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="30" cy="40" rx="16" ry="12" fill="#ffd15c"/><circle cx="44" cy="28" r="11" fill="#ffe56a"/><circle cx="48" cy="26" r="2" fill="#1b2430"/><path d="M52 30h10l-8 5z" fill="#ff8a3d"/><ellipse cx="22" cy="50" rx="8" ry="3" fill="#f0b429"/></svg>',
-      fish: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 32c10-14 28-16 40-8 4 8 4 16 0 24-12 8-30 6-40-8z" fill="#ff8a3d"/><path d="M48 24c8-8 12-8 14-2-6 4-10 8-14 10z" fill="#ffb057"/><circle cx="22" cy="30" r="2.4" fill="#1b2430"/><path d="M18 28h16" stroke="#fff3" stroke-width="2"/></svg>',
-      frog: '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="40" rx="16" ry="12" fill="#7dff6a"/><circle cx="22" cy="26" r="8" fill="#8dff78"/><circle cx="42" cy="26" r="8" fill="#8dff78"/><circle cx="22" cy="26" r="3" fill="#1b2430"/><circle cx="42" cy="26" r="3" fill="#1b2430"/><path d="M28 40h8" stroke="#1b2430" stroke-width="2" stroke-linecap="round"/></svg>',
-      turtle: '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="36" rx="16" ry="12" fill="#63c46a"/><ellipse cx="32" cy="36" rx="10" ry="7" fill="#8ee08a"/><circle cx="48" cy="34" r="7" fill="#b6e7a0"/><circle cx="50" cy="33" r="1.6" fill="#1b2430"/><path d="M18 44c-6 4-8 8-6 10M46 46c6 3 8 7 6 9" stroke="#8ee08a" stroke-width="3" stroke-linecap="round"/></svg>',
-      seahorse: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M40 10c8 4 10 12 6 18-2 4-2 6 0 8 4 4 4 12-2 16-6 4-8 8-6 12" fill="none" stroke="#ff77c8" stroke-width="8" stroke-linecap="round"/><circle cx="44" cy="16" r="2" fill="#1b2430"/><path d="M28 22c-8 2-10 8-6 10" stroke="#ff9ad4" stroke-width="3" stroke-linecap="round"/></svg>',
-    };
-    return art[kind] || art.duck;
+  function findArt(node, depth) {
+    if (!node || depth > 8) return null;
+    if (node.name === "raceFish" && node._open) return node._open;
+    if (node.name === "raceFish" && node._plate && node._plate._plain) return node._plate._plain;
+    if (node.name === "raceFish" && node.image) return node.image;
+    const kids = node.children || [];
+    for (let i = 0; i < kids.length; i += 1) {
+      const found = findArt(kids[i], depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function portraitOf(node) {
+    if (!node) return "";
+    const art = findArt(node, 0);
+    let plate = art;
+    if (!plate && node.draw) {
+      const hidden = [];
+      function mute(item, depth) {
+        if (!item || depth > 8) return;
+        if (item.name === "no" || item.name === "myNum") {
+          hidden.push(item);
+          item.visible = false;
+        }
+        const kids = item.children || [];
+        for (let i = 0; i < kids.length; i += 1) mute(kids[i], depth + 1);
+      }
+      mute(node, 0);
+      const size = 1600;
+      plate = document.createElement("canvas");
+      plate.width = size;
+      plate.height = size;
+      const pen = plate.getContext("2d");
+      pen.translate(size / 2, size / 2);
+      try { node.draw(pen, true); } catch (error) { plate = null; }
+      hidden.forEach(function (item) { item.visible = true; });
+    }
+    if (!plate) return "";
+    const pen = plate.getContext("2d");
+    const pixels = pen.getImageData(0, 0, plate.width, plate.height);
+    const data = pixels.data;
+    let minX = plate.width;
+    let minY = plate.height;
+    let maxX = 0;
+    let maxY = 0;
+    for (let py = 0; py < plate.height; py += 2) {
+      for (let px = 0; px < plate.width; px += 2) {
+        if (data[(py * plate.width + px) * 4 + 3] < 20) continue;
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+      }
+    }
+    if (maxX <= minX || maxY <= minY) return "";
+    const margin = 18;
+    minX = Math.max(0, minX - margin);
+    minY = Math.max(0, minY - margin);
+    maxX = Math.min(plate.width - 1, maxX + margin);
+    maxY = Math.min(plate.height - 1, maxY + margin);
+    const cut = document.createElement("canvas");
+    cut.width = maxX - minX + 1;
+    cut.height = maxY - minY + 1;
+    cut.getContext("2d").drawImage(plate, minX, minY, cut.width, cut.height, 0, 0, cut.width, cut.height);
+    return cut.toDataURL("image/png");
+  }
+
+  function trophyArt() {
+    return '<svg viewBox="0 0 160 188" aria-hidden="true"><defs><linearGradient id="cup" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff7c8"/><stop offset="0.45" stop-color="#ffd15c"/><stop offset="1" stop-color="#e08912"/></linearGradient><linearGradient id="stem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a0"/><stop offset="1" stop-color="#c98412"/></linearGradient></defs><ellipse cx="80" cy="168" rx="46" ry="10" fill="rgba(0,0,0,.28)"/><path d="M46 34h68c2 28-8 48-34 54-26-6-36-26-34-54z" fill="url(#cup)" stroke="#fff3b0" stroke-width="3"/><path d="M58 42c8 18 36 18 44 0" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="4" stroke-linecap="round"/><path d="M46 42c-16 2-24 16-18 28 6 10 18 10 24-2" fill="none" stroke="url(#cup)" stroke-width="8" stroke-linecap="round"/><path d="M114 42c16 2 24 16 18 28-6 10-18 10-24-2" fill="none" stroke="url(#cup)" stroke-width="8" stroke-linecap="round"/><path d="M72 88h16l6 28H66z" fill="url(#stem)"/><path d="M52 116h56c4 0 8 6 6 12H46c-2-6 2-12 6-12z" fill="url(#cup)" stroke="#fff3b0" stroke-width="2"/><path d="M80 28l4 10 10 1-8 6 3 10-9-6-9 6 3-10-8-6 10-1z" fill="#fff"/></svg>';
   }
 
   function burst(x, y, count) {
-    bits.push({ x: x, y: y, vx: 0, vy: 0, w: 70, h: 70, rot: 0, vr: 0, color: "#fff6c8", life: 0.28, age: 0, kind: "flash" });
+    bits.push({ x: x, y: y, vx: 0, vy: 0, w: 150, h: 150, rot: 0, vr: 0, color: "#fff6c8", life: 0.42, age: 0, kind: "flash" });
     for (let i = 0; i < count; i += 1) {
-      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.2;
-      const speed = 220 + Math.random() * 560;
-      const streak = i % 3 === 0;
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      const speed = 420 + Math.random() * 980;
+      const streak = i % 2 === 0;
       bits.push({
         x: x,
         y: y,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 40,
-        w: streak ? 16 + Math.random() * 18 : 7 + Math.random() * 8,
-        h: streak ? 3 : 7 + Math.random() * 6,
+        vy: Math.sin(angle) * speed - 120,
+        w: streak ? 22 + Math.random() * 28 : 8 + Math.random() * 10,
+        h: streak ? 4 : 8 + Math.random() * 8,
         rot: angle,
-        vr: streak ? 0 : (Math.random() - 0.5) * 10,
+        vr: streak ? 0 : (Math.random() - 0.5) * 16,
         color: COLORS[(Math.random() * COLORS.length) | 0],
-        life: 1.15 + Math.random() * 0.75,
+        life: 1.35 + Math.random() * 0.9,
         age: 0,
         kind: streak ? "streak" : "chip",
       });
@@ -162,21 +225,22 @@
     overlay.dataset.frames = String(Number(overlay.dataset.frames || 0) + 1);
     if (!opened && viewW > 2) {
       opened = true;
-      burst(viewW * 0.5, viewH * 0.34, 90);
-      burst(viewW * 0.18, viewH * 0.28, 48);
-      burst(viewW * 0.82, viewH * 0.26, 48);
-      burst(viewW * 0.32, viewH * 0.62, 36);
-      burst(viewW * 0.7, viewH * 0.66, 36);
-      nextBurst = now + 380;
+      burst(viewW * 0.5, viewH * 0.42, 120);
+      burst(viewW * 0.12, viewH * 0.22, 70);
+      burst(viewW * 0.88, viewH * 0.2, 70);
+      burst(viewW * 0.28, viewH * 0.72, 64);
+      burst(viewW * 0.72, viewH * 0.74, 64);
+      burst(viewW * 0.5, viewH * 0.12, 80);
+      nextBurst = now + 180;
     } else if (opened && now > nextBurst) {
-      burst(viewW * (0.2 + Math.random() * 0.6), viewH * (0.18 + Math.random() * 0.35), 26);
-      nextBurst = now + 420;
+      burst(viewW * (0.08 + Math.random() * 0.84), viewH * (0.08 + Math.random() * 0.7), 48);
+      nextBurst = now + 180;
     }
     ctx.clearRect(0, 0, viewW, viewH);
     bits = bits.filter(function (bit) {
       bit.age += dt;
       if (bit.age >= bit.life) return false;
-      bit.vy += 520 * dt;
+      bit.vy += 640 * dt;
       bit.vx *= 0.99;
       bit.x += bit.vx * dt;
       bit.y += bit.vy * dt;
@@ -197,7 +261,7 @@
         ctx.rotate(bit.rot);
         ctx.fillStyle = bit.color;
         ctx.shadowColor = bit.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 16;
         ctx.fillRect(-bit.w / 2, -bit.h / 2, bit.w, bit.h);
       }
       ctx.restore();
@@ -227,20 +291,21 @@
     const style = document.createElement("style");
     style.id = "finish-style";
     style.textContent = [
-      "#finish-celebration{position:fixed;inset:0;z-index:1000000000;display:grid;place-items:center;background:rgba(5,16,32,.42);font-family:'Trebuchet MS','Segoe UI',sans-serif}",
+      "#finish-celebration{position:fixed;inset:0;z-index:1000000000;display:grid;place-items:center;background:radial-gradient(circle at 50% 42%,rgba(88,28,135,.28),rgba(4,8,20,.62));font-family:'Trebuchet MS','Segoe UI',sans-serif}",
       "#finish-celebration .finish-sky{position:fixed;inset:0;z-index:1000000001;pointer-events:none}",
-      "#finish-celebration .finish-card{position:relative;z-index:1000000002;width:min(420px,calc(100% - 40px));padding:26px 28px 22px;border-radius:28px;text-align:center;color:#fff;background:linear-gradient(180deg,#1a4e86 0%,#102848 55%,#0c1c33 100%);border:3px solid #ffd15c;box-shadow:0 24px 70px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.35);animation:finish-pop .55s cubic-bezier(.18,1.35,.36,1) both}",
-      "#finish-celebration .finish-kicker{margin:0;letter-spacing:.22em;text-transform:uppercase;font-size:12px;font-weight:700;color:#ffd15c}",
-      "#finish-celebration .finish-title{margin:8px 0 0;font-size:34px;line-height:1.05;font-weight:800}",
-      "#finish-celebration .finish-animal{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px}",
-      "#finish-celebration .finish-animal svg{width:72px;height:72px;filter:drop-shadow(0 8px 0 rgba(0,0,0,.12))}",
-      "#finish-celebration .finish-animal span{font-size:28px;font-weight:800}",
-      "#finish-celebration .finish-name{margin:6px 0 0;font-size:40px;font-weight:800;line-height:1.1}",
-      "#finish-celebration .finish-medal{display:grid;place-items:center;width:108px;height:108px;margin:16px auto 0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff4c2,#ffd15c 42%,#f0a202);color:#3a2a08;box-shadow:0 10px 0 #c9860a,0 16px 24px rgba(0,0,0,.25)}",
-      "#finish-celebration .finish-medal span{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}",
-      "#finish-celebration .finish-medal strong{font-size:42px;line-height:.9}",
-      "#finish-celebration .finish-close{margin-top:18px;border:0;border-radius:999px;padding:12px 28px;background:#7dff6a;color:#143018;font:800 16px 'Trebuchet MS','Segoe UI',sans-serif;cursor:pointer;box-shadow:0 6px 0 #3aaa32}",
-      "@keyframes finish-pop{from{transform:scale(.82);opacity:0}to{transform:scale(1);opacity:1}}",
+      "#finish-celebration .finish-card{position:relative;z-index:1000000002;width:min(440px,calc(100% - 36px));padding:28px 28px 22px;border-radius:32px;text-align:center;color:#fff;background:radial-gradient(circle at 50% 0%,#3a2a86 0%,#1a1460 42%,#120b3a 100%);box-shadow:0 0 0 3px #ffd76a,0 0 0 7px rgba(255,215,106,.35),0 30px 80px rgba(0,0,0,.45),inset 0 0 40px rgba(255,210,90,.18);animation:finish-pop .55s cubic-bezier(.18,1.35,.36,1) both,finish-glow 1.4s ease-in-out infinite}",
+      "#finish-celebration .finish-kicker{margin:0;letter-spacing:.28em;text-transform:uppercase;font-size:12px;font-weight:800;color:#ffe08a;text-shadow:0 0 12px rgba(255,208,90,.8)}",
+      "#finish-celebration .finish-title{margin:8px 0 0;font-size:36px;line-height:1.05;font-weight:800;background:linear-gradient(180deg,#fff,#ffe08a);-webkit-background-clip:text;background-clip:text;color:transparent}",
+      "#finish-celebration .finish-hero{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;overflow:visible}",
+      "#finish-celebration .finish-portrait{width:180px;height:150px;object-fit:contain;overflow:visible;filter:drop-shadow(0 10px 0 rgba(0,0,0,.18)) drop-shadow(0 0 16px rgba(255,214,102,.45))}",
+      "#finish-celebration .finish-kind{font-size:30px;font-weight:800;text-shadow:0 4px 0 rgba(0,0,0,.25)}",
+      "#finish-celebration .finish-name{margin:4px 0 0;font-size:42px;font-weight:800;line-height:1.05;text-shadow:0 4px 0 #5b2a86,0 0 18px rgba(255,214,102,.45)}",
+      "#finish-celebration .finish-trophy{position:relative;width:148px;height:168px;margin:8px auto 0;filter:drop-shadow(0 12px 0 rgba(120,70,10,.35)) drop-shadow(0 0 18px rgba(255,210,80,.7))}",
+      "#finish-celebration .finish-trophy svg{width:100%;height:100%;display:block}",
+      "#finish-celebration .finish-trophy strong{position:absolute;left:0;right:0;top:58px;font-size:36px;line-height:1;color:#6a3b08;text-shadow:0 1px 0 rgba(255,255,255,.65)}",
+      "#finish-celebration .finish-close{margin-top:8px;border:0;border-radius:999px;padding:12px 28px;background:linear-gradient(180deg,#d8ff67,#3dce45);color:#143018;font:800 16px 'Trebuchet MS','Segoe UI',sans-serif;cursor:pointer;box-shadow:0 6px 0 #178a32,0 0 16px rgba(120,255,90,.45)}",
+      "@keyframes finish-pop{from{transform:scale(.78) rotate(-2deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}",
+      "@keyframes finish-glow{0%,100%{box-shadow:0 0 0 3px #ffd76a,0 0 0 7px rgba(255,215,106,.28),0 30px 80px rgba(0,0,0,.45),inset 0 0 40px rgba(255,210,90,.18)}50%{box-shadow:0 0 0 3px #fff1a8,0 0 0 12px rgba(255,215,106,.45),0 30px 80px rgba(0,0,0,.45),inset 0 0 54px rgba(255,210,90,.32)}}",
       "@media (prefers-reduced-motion: reduce){#finish-celebration .finish-card{animation:none}}",
     ].join("");
     document.head.appendChild(style);
@@ -265,17 +330,25 @@
       '<section class="finish-card">' +
       '<p class="finish-kicker">Finish line</p>' +
       '<h2 class="finish-title"></h2>' +
-      '<div class="finish-animal">' + animalArt(kind) + '<span></span></div>' +
+      '<div class="finish-hero"><img class="finish-portrait" alt="" /><span class="finish-kind"></span></div>' +
       '<p class="finish-name"></p>' +
-      '<div class="finish-medal"><span>Number</span><strong></strong></div>' +
+      '<div class="finish-trophy">' + trophyArt() + '<strong></strong></div>' +
       '<button type="button" class="finish-close">Continue</button>' +
       "</section>";
     overlay.querySelector(".finish-title").textContent = title();
-    overlay.querySelector(".finish-animal span").textContent = LABELS[kind];
+    overlay.querySelector(".finish-kind").textContent = LABELS[kind];
     overlay.querySelector(".finish-name").textContent = info.name;
-    const medal = overlay.querySelector(".finish-medal");
-    if (info.number) medal.querySelector("strong").textContent = info.number;
-    else medal.remove();
+    overlay.querySelector(".finish-portrait").alt = info.name;
+    const plate = overlay.querySelector(".finish-trophy strong");
+    if (info.number) plate.textContent = info.number;
+    else plate.remove();
+    const winnerNode = info.node;
+    window.setTimeout(function () {
+      const picture = overlay && overlay.querySelector(".finish-portrait");
+      if (!picture) return;
+      const url = portraitOf(winnerNode);
+      if (url) picture.src = url;
+    }, 0);
     overlay.querySelector(".finish-close").addEventListener("click", close);
     document.body.appendChild(overlay);
     canvas = overlay.querySelector("canvas");
