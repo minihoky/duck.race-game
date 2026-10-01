@@ -11,14 +11,7 @@ const MIN_DURATION = 10;
 const MAX_DURATION = 120;
 const MAX_NAMES = 200;
 
-function clockText(totalSeconds) {
-  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const minutes = String(Math.floor(safe / 60)).padStart(2, "0");
-  const seconds = String(safe % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-// A numeric keypad that types the race length in seconds and shows it on a digital clock.
+// A numeric keypad that types the race length in seconds; the digital clock shows the typed number as is.
 function DurationPad({ value, onChange }) {
   const { t } = useT();
   const seconds = Number(value) || 0;
@@ -58,12 +51,12 @@ function DurationPad({ value, onChange }) {
           aria-label={t("{n} seconds", { n: seconds })}
         >
           <span
-            className={`font-mono text-7xl font-bold tabular-nums tracking-widest ${invalid ? "text-red-400" : "text-emerald-300"}`}
+            className={`font-mono text-8xl font-bold tabular-nums tracking-widest ${invalid ? "text-red-400" : "text-emerald-300"}`}
             style={{ textShadow: "0 0 18px currentColor" }}
           >
-            {clockText(seconds)}
+            {seconds}
           </span>
-          <span className="mt-2 text-sm text-sky-200/70">{t("{n} seconds", { n: seconds })}</span>
+          <span className="mt-2 text-sm uppercase tracking-[0.2em] text-sky-200/70">{t("seconds")}</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (

@@ -458,6 +458,7 @@ export const PT = {
   "Use numbers": "Usar números",
   "Race length": "Duração da corrida",
   "{n} seconds": "{n} segundos",
+  "seconds": "segundos",
   "Clear": "Limpar",
   "Delete last digit": "Apagar o último dígito",
   "Set a length between {min} and {max} seconds.": "Defina uma duração entre {min} e {max} segundos.",
