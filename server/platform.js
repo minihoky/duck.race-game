@@ -50,7 +50,7 @@ function id12() {
 
 export const RACE_ALGORITHM = "race-v2";
 export const LEAD_IN_MS = 3000;
-export const ANIMALS = ["rabbit", "frog", "fish", "turtle", "seahorse"];
+export const ANIMALS = ["rabbit", "frog", "fish", "turtle", "snail"];
 
 function animalOf(race) {
   return ANIMALS.includes(race.animal) ? race.animal : "rabbit";

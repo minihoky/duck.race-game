@@ -39,14 +39,14 @@ const HABITATS = {
     lane: "rgba(120,80,30,0.08)",
     decor: "palm",
   },
-  seahorse: {
-    sky: ["#0b3b5c", "#0f6a96"],
-    far: "#145a70",
-    mid: "#c2416f",
-    surface: ["#11718c", "#0a3f55"],
-    mark: "rgba(200,240,255,0.35)",
-    lane: "rgba(255,255,255,0.05)",
-    decor: "coral",
+  snail: {
+    sky: ["#a9dcef", "#f1f9ec"],
+    far: "#7fb35a",
+    mid: "#e0443a",
+    surface: ["#7cb350", "#4a7f34"],
+    mark: "rgba(255,255,255,0.3)",
+    lane: "rgba(30,60,20,0.08)",
+    decor: "mushroom",
   },
 };
 
@@ -193,23 +193,30 @@ export function createRace(race, sponsorImages = []) {
         g.ellipse(x + size * 0.05 + Math.cos(a) * size * 0.22, base - size * 0.95 + Math.sin(a) * size * 0.12, size * 0.26, size * 0.06, a, 0, Math.PI * 2);
         g.fill();
       }
-    } else if (kind === "coral") {
-      g.strokeStyle = rand() < 0.5 ? habitat.mid : "#f08c3a";
-      g.lineCap = "round";
-      g.lineWidth = Math.max(3, size * 0.08);
-      const branch = (bx, by, len, angle, depth) => {
-        const ex = bx + Math.cos(angle) * len;
-        const ey = by + Math.sin(angle) * len;
+    } else if (kind === "mushroom") {
+      g.fillStyle = "#3f7a2e";
+      g.beginPath();
+      g.ellipse(x + size * 0.1, base, size * 0.5, size * 0.16, 0, Math.PI, 0);
+      g.fill();
+      const caps = rand() < 0.5 ? [[0, 0.75], [size * 0.3, 0.5]] : [[0, 0.6]];
+      for (const [dx, scale] of caps) {
+        const s = size * scale;
+        const mx = x + dx;
+        g.fillStyle = "#f6ecd8";
+        roundRect(g, mx - s * 0.1, base - s * 0.62, s * 0.2, s * 0.62, s * 0.08);
+        g.fill();
+        g.fillStyle = habitat.mid;
         g.beginPath();
-        g.moveTo(bx, by);
-        g.lineTo(ex, ey);
-        g.stroke();
-        if (depth > 0) {
-          branch(ex, ey, len * 0.7, angle - 0.45, depth - 1);
-          branch(ex, ey, len * 0.7, angle + 0.45, depth - 1);
+        g.ellipse(mx, base - s * 0.6, s * 0.38, s * 0.3, 0, Math.PI, 0);
+        g.closePath();
+        g.fill();
+        g.fillStyle = "#fff";
+        for (const [sx, sy, r] of [[-0.18, -0.7, 0.06], [0.08, -0.8, 0.07], [0.22, -0.66, 0.05]]) {
+          g.beginPath();
+          g.arc(mx + s * sx, base + s * sy, s * r, 0, Math.PI * 2);
+          g.fill();
         }
-      };
-      branch(x, base, size * 0.32, -Math.PI / 2, 2);
+      }
     }
     g.restore();
   }
@@ -328,7 +335,6 @@ export function createRace(race, sponsorImages = []) {
   function bodyMotion(animal, track, progress, speed, t, L) {
     const stride = (progress * L.trackLen) / Math.max(18, L.spriteH * 0.9) + track.phase;
     const moving = t > 0 && progress < 1.02;
-    const calm = Math.sin(t / 380 + track.phase) * 0.5;
     if (animal === "frog") {
       const hop = moving ? Math.abs(Math.sin(stride * 0.7)) : 0;
       return { dy: -hop * L.spriteH * 0.32, rot: moving ? -0.12 * Math.cos(stride * 0.7) : 0, squash: moving ? 1 + (1 - hop) * 0.08 : 1 };
@@ -350,7 +356,11 @@ export function createRace(race, sponsorImages = []) {
       const cycle = (((stride * 0.5) % 1) + 1) % 1;
       return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 8) };
     }
-    if (animal === "seahorse") return { dy: Math.sin(stride * 0.9 + calm) * L.spriteH * 0.12, rot: Math.sin(stride * 0.9) * 0.08 - 0.05, squash: 1 };
+    if (animal === "snail") {
+      if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0 };
+      const cycle = (((stride * 0.4) % 1) + 1) % 1;
+      return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 8) };
+    }
     if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0 };
     const cycle = (((stride * 0.45) % 1) + 1) % 1;
     return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 6) };

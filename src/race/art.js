@@ -10,7 +10,7 @@ export const ANIMALS = {
   frog: { label: "Frog", habitat: "Marsh" },
   fish: { label: "Fish", habitat: "Stream" },
   turtle: { label: "Turtle", habitat: "Beach" },
-  seahorse: { label: "Seahorse", habitat: "Coral reef" },
+  snail: { label: "Snail", habitat: "Garden" },
 };
 
 export const PALETTE = [
@@ -110,6 +110,21 @@ const TURTLE_SWIM = Array.from({ length: 8 }, (_, k) => {
     head: -Math.sin(a) * 0.05,
     rock: Math.sin(a) * 0.03,
     bob: -Math.cos(a) * 1.2,
+  };
+});
+
+const SNAIL_REST = { reach: 0, tail: 0, shell: 0, lift: 0, rock: 0, wave: 0, stalkNear: 0, stalkFar: 0 };
+const SNAIL_CRAWL = Array.from({ length: 8 }, (_, k) => {
+  const a = (k / 8) * Math.PI * 2;
+  return {
+    reach: (1 - Math.cos(a)) * 14,
+    tail: (1 - Math.cos(a - 2)) * 9,
+    shell: (1 - Math.cos(a - 1.1)) * 6,
+    lift: -Math.max(0, Math.sin(a - 1.1)) * 6,
+    rock: Math.sin(a - 1.1) * 0.025,
+    wave: a,
+    stalkNear: Math.sin(a + 0.5) * 0.12,
+    stalkFar: Math.sin(a + 1.5) * 0.14,
   };
 });
 
@@ -967,44 +982,202 @@ const BODIES = {
     const at = (x, y) => [OX + x * S, OY + pose.bob + y * S];
     return { hat: [...at(800, 150), 0.95], eyes: [[...at(812, 256), 64 * S]], neck: at(720, 400) };
   },
-  seahorse(g, color, skin) {
-    g.beginPath();
-    g.moveTo(58, 60);
-    g.quadraticCurveTo(66, 80, 54, 84);
-    g.quadraticCurveTo(42, 84, 44, 76);
-    g.quadraticCurveTo(46, 70, 52, 74);
-    g.lineWidth = 11;
+  snail(g, color, skin, pose = SNAIL_REST) {
+    const S = 0.136;
+    const OX = -15;
+    const OY = -4;
+    const K = "#121212";
+    const line = 15;
+    const flesh = "#f6c54a";
+    const fleshLight = "#fde3a0";
+    const fleshDark = "#d8923a";
+    const variant = skin.pattern;
+    const reach = pose.reach;
+    const drag = pose.tail;
+    const ripple = (x) => Math.sin(x / 70 - pose.wave) * 7;
+
+    const ink = (width = line) => {
+      g.lineWidth = width;
+      g.strokeStyle = K;
+      g.stroke();
+    };
+    const paint = (fill, width = line) => {
+      g.fillStyle = fill;
+      g.fill();
+      ink(width);
+    };
+    const body = (c) => {
+      c.beginPath();
+      c.moveTo(135 + drag, 578);
+      c.bezierCurveTo(170 + drag, 556, 205 + drag, 545, 250, 532);
+      c.lineTo(560, 495);
+      c.bezierCurveTo(610 + reach * 0.4, 440, 650 + reach * 0.7, 330, 712 + reach, 292);
+      c.bezierCurveTo(760 + reach, 262, 840 + reach, 262, 868 + reach, 318);
+      c.bezierCurveTo(880 + reach, 345, 884 + reach, 368, 888 + reach, 380);
+      c.bezierCurveTo(912 + reach, 386, 916 + reach, 420, 892 + reach, 430);
+      c.bezierCurveTo(872 + reach, 450, 840 + reach, 462, 812 + reach, 468);
+      c.bezierCurveTo(770 + reach * 0.9, 480, 745 + reach * 0.8, 520, 742 + reach * 0.7, 560);
+      c.bezierCurveTo(742 + reach * 0.6, 590, 720 + reach * 0.5, 604, 690 + reach * 0.5, 604 + ripple(690));
+      for (let x = 650; x >= 170; x -= 40) {
+        const px = x + (drag * (650 - x)) / 480;
+        c.lineTo(px, 608 + ripple(x));
+      }
+      c.bezierCurveTo(150 + drag, 604, 128 + drag, 596, 135 + drag, 578);
+      c.closePath();
+    };
+    const stalk = (base, tip, angle, eyeR, pupil) => {
+      g.save();
+      g.translate(base[0] + reach, base[1]);
+      g.rotate(angle);
+      g.translate(-base[0] - reach, -base[1]);
+      g.beginPath();
+      g.moveTo(base[0] + reach, base[1]);
+      g.quadraticCurveTo(base[0] + reach + (tip[0] - base[0]) * 0.3, (base[1] + tip[1]) / 2, tip[0] + reach, tip[1]);
+      g.lineCap = "round";
+      g.lineWidth = 50;
+      g.strokeStyle = K;
+      g.stroke();
+      g.lineWidth = 22;
+      g.strokeStyle = flesh;
+      g.stroke();
+      g.beginPath();
+      g.arc(tip[0] + reach, tip[1] - eyeR * 0.7, eyeR, 0, Math.PI * 2);
+      paint("#fff", 13);
+      g.beginPath();
+      g.arc(tip[0] + reach + pupil[0], tip[1] - eyeR * 0.7 + pupil[1], eyeR * 0.6, 0, Math.PI * 2);
+      g.fillStyle = "#111";
+      g.fill();
+      g.beginPath();
+      g.arc(tip[0] + reach + pupil[0] + eyeR * 0.22, tip[1] - eyeR * 0.7 + pupil[1] - eyeR * 0.22, eyeR * 0.18, 0, Math.PI * 2);
+      g.fillStyle = "#fff";
+      g.fill();
+      g.restore();
+    };
+
+    g.save();
+    g.translate(OX, OY);
+    g.scale(S, S);
+    g.lineJoin = "round";
     g.lineCap = "round";
-    g.strokeStyle = INK;
-    g.stroke();
-    g.lineWidth = 7;
-    g.strokeStyle = color;
-    g.stroke();
-    g.lineCap = "butt";
-    g.beginPath();
-    g.moveTo(50, 36);
-    g.quadraticCurveTo(34, 46, 50, 58);
-    g.closePath();
-    fillStroke(g, shade(color, 0.35), 1.8);
-    const body = (c) => ellipse(c, 60, 48, 13, 19, -0.15);
+
+    stalk([828, 292], [882, 205], pose.stalkFar, 42, [14, 0]);
+    stalk([772, 290], [770, 172], pose.stalkNear, 46, [16, 2]);
+
     body(g);
-    fillStroke(g, color);
-    pattern(g, skin.pattern, body, color, [46, 29, 28, 38]);
+    paint(flesh);
+    g.save();
     body(g);
-    g.lineWidth = 2.2;
-    g.strokeStyle = INK;
-    g.stroke();
+    g.clip();
+    g.fillStyle = fleshLight;
     g.beginPath();
-    g.moveTo(74, 19);
-    g.lineTo(96, 21);
-    g.quadraticCurveTo(99, 25, 96, 28);
-    g.lineTo(74, 28);
+    g.moveTo(120, 590);
+    g.bezierCurveTo(330, 572, 560, 560, 760 + reach, 520);
+    g.lineTo(780 + reach, 660);
+    g.lineTo(120, 660);
     g.closePath();
-    fillStroke(g, color);
-    ellipse(g, 68, 23, 12, 11);
-    fillStroke(g, color);
-    eye(g, 71, 21, 2.8);
-    return { hat: [66, 13, 0.85], eyes: [[71, 21]], neck: [62, 36] };
+    g.fill();
+    g.fillStyle = fleshDark;
+    for (const [x, y, rx, ry] of [[678, 428, 17, 13], [648, 466, 16, 12], [610, 504, 14, 10]]) {
+      g.beginPath();
+      g.ellipse(x + reach * 0.6, y, rx, ry, -0.6, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+    body(g);
+    ink();
+
+    g.beginPath();
+    g.arc(800 + reach, 360, 56, 0, Math.PI * 2);
+    paint("#fff", 13);
+    g.beginPath();
+    g.arc(826 + reach, 356, 32, 0, Math.PI * 2);
+    g.fillStyle = "#111";
+    g.fill();
+    g.beginPath();
+    g.arc(838 + reach, 344, 10, 0, Math.PI * 2);
+    g.fillStyle = "#fff";
+    g.fill();
+    g.beginPath();
+    g.moveTo(836 + reach, 428);
+    g.quadraticCurveTo(858 + reach, 446, 880 + reach, 424);
+    ink(11);
+
+    const shift = pose.shell;
+    g.save();
+    g.translate(shift, pose.lift);
+    g.translate(410, 520);
+    g.rotate(pose.rock);
+    g.translate(-410, -520);
+    const shell = (c) => {
+      c.beginPath();
+      c.ellipse(410, 335, 248, 212, -0.08, 0, Math.PI * 2);
+    };
+    shell(g);
+    const tone = g.createRadialGradient(470, 230, 30, 410, 335, 270);
+    tone.addColorStop(0, shade(color, 0.18));
+    tone.addColorStop(0.65, color);
+    tone.addColorStop(1, shade(color, -0.3));
+    paint(tone);
+    g.save();
+    shell(g);
+    g.clip();
+    if (variant === "belly") {
+      g.lineWidth = 60;
+      g.strokeStyle = shade(color, -0.32);
+      shell(g);
+      g.stroke();
+    }
+    const spiral = (from, to) => {
+      g.beginPath();
+      for (let a = from; a <= to; a += 0.08) {
+        const r = 6 + a * 11.5;
+        const x = 292 + r * 0.3 + Math.cos(a + 0.4) * r;
+        const y = 366 - r * 0.1 + Math.sin(a + 0.4) * r * 0.94;
+        if (a === from) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+    };
+    spiral(0.5, 13);
+    g.lineWidth = 44;
+    g.strokeStyle = shade(color, -0.3);
+    g.globalAlpha = 0.55;
+    g.stroke();
+    g.globalAlpha = 1;
+    if (variant === "stripes") {
+      g.save();
+      g.translate(-24, -16);
+      spiral(4, 13);
+      g.restore();
+      g.lineWidth = 14;
+      g.strokeStyle = shade(color, 0.45);
+      g.stroke();
+    }
+    if (variant === "spots") {
+      g.fillStyle = shade(color, 0.42);
+      for (const [x, y, r] of [[520, 260, 18], [560, 380, 16], [430, 470, 15], [250, 470, 13], [420, 170, 14], [600, 300, 12]]) {
+        g.beginPath();
+        g.arc(x, y, r, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    g.fillStyle = "#fff";
+    g.globalAlpha = 0.38;
+    for (const [x, y, rx, ry, rot] of [[492, 168, 54, 15, 0.22], [384, 286, 38, 11, 0.32], [300, 345, 16, 7, 0.9]]) {
+      g.beginPath();
+      g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+    spiral(0.5, 13);
+    ink(14);
+    g.restore();
+    shell(g);
+    ink();
+    g.restore();
+
+    g.restore();
+    const at = (x, y) => [OX + x * S, OY + y * S];
+    return { hat: [...at(796 + reach, 268), 0.75], eyes: [[...at(806 + reach, 360), 56 * S]], neck: at(780 + reach, 476) };
   },
 };
 
@@ -1156,6 +1329,7 @@ const CYCLES = {
   rabbit: [RABBIT_REST, RABBIT_RUN],
   fish: [FISH_REST, FISH_WAG],
   turtle: [TURTLE_REST, TURTLE_SWIM],
+  snail: [SNAIL_REST, SNAIL_CRAWL],
 };
 
 export function bakeFrames(animal, skin) {
