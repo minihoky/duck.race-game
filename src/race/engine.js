@@ -297,34 +297,116 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     const y = L.skyH + 2;
     const spacing = clamp(w * 0.3, 220, 360);
     const boardW = spacing - 10;
+    const H = L.boardH;
+    const skew = H * 0.38;
     const first = Math.floor(cam / spacing) - 1;
-    g.fillStyle = "#0b1118";
-    g.fillRect(0, y - 2, w, L.boardH + 6);
     const cycle = Math.floor(Math.max(0, t) / 4000);
+
+    g.save();
+
+    // Slim wooden posts behind the panels, drifting slower than the track for depth.
+    const postGap = 30;
+    const postShift = cam * 0.9;
+    g.fillStyle = "rgba(92,66,40,0.55)";
+    const firstPost = Math.floor(postShift / postGap) - 1;
+    for (let p = firstPost; p < firstPost + Math.ceil(w / postGap) + 3; p += 1) {
+      g.fillRect(p * postGap - postShift, y - 7, 3, H + 14);
+    }
+    g.fillStyle = "rgba(6,18,40,0.35)";
+    g.fillRect(0, y + H + 3, w, 4);
+
     for (let i = first; i < first + Math.ceil(w / spacing) + 3; i += 1) {
-      const x = i * spacing - cam + 5;
-      if (x > w || x + boardW < 0) continue;
-      roundRect(g, x, y, boardW, L.boardH, 4);
-      g.fillStyle = "#07140c";
+      const x = i * spacing - cam + 8;
+      if (x > w + skew || x + boardW < -skew) continue;
+      const right = x + boardW;
+
+      // Light slanted bar between two panels.
+      g.beginPath();
+      g.moveTo(right + 1 + skew, y);
+      g.lineTo(right + 6 + skew, y);
+      g.lineTo(right + 6, y + H);
+      g.lineTo(right + 1, y + H);
+      g.closePath();
+      g.fillStyle = "#8fdcff";
+      g.shadowColor = "rgba(110,200,255,0.9)";
+      g.shadowBlur = 8;
       g.fill();
-      g.strokeStyle = "rgba(214,178,94,0.8)";
-      g.lineWidth = 1.5;
+      g.shadowBlur = 0;
+
+      // Panel body.
+      g.beginPath();
+      g.moveTo(x + skew, y);
+      g.lineTo(right + skew, y);
+      g.lineTo(right, y + H);
+      g.lineTo(x, y + H);
+      g.closePath();
+      const body = g.createLinearGradient(0, y, 0, y + H);
+      body.addColorStop(0, "#102a63");
+      body.addColorStop(1, "#071a3f");
+      g.fillStyle = body;
+      g.fill();
+      const rim = g.createLinearGradient(x, 0, right + skew, 0);
+      rim.addColorStop(0, "#63d2ff");
+      rim.addColorStop(0.5, "#2e78ff");
+      rim.addColorStop(1, "#63d2ff");
+      g.strokeStyle = rim;
+      g.lineWidth = 2;
+      g.shadowColor = "rgba(70,150,255,0.95)";
+      g.shadowBlur = 10;
       g.stroke();
+      g.shadowBlur = 0;
+
       const sponsor = sponsorImages.length ? sponsorImages[(((i + cycle) % sponsorImages.length) + sponsorImages.length) % sponsorImages.length] : null;
+      const midX = x + (boardW + skew) / 2;
+      const midY = y + H / 2;
       if (sponsor && sponsor.complete && sponsor.naturalWidth) {
-        const scale = Math.min((boardW - 12) / sponsor.naturalWidth, (L.boardH - 8) / sponsor.naturalHeight);
+        const fitW = boardW - skew - 18;
+        const scale = Math.min(fitW / sponsor.naturalWidth, (H - 10) / sponsor.naturalHeight);
         const iw = sponsor.naturalWidth * scale;
         const ih = sponsor.naturalHeight * scale;
-        g.drawImage(sponsor, x + (boardW - iw) / 2, y + (L.boardH - ih) / 2, iw, ih);
-      } else {
-        g.fillStyle = "#7dffa1";
-        g.font = `700 ${Math.round(L.boardH * 0.42)}px "Trebuchet MS", sans-serif`;
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        const text = i % 2 === 0 ? race.name.toUpperCase() : labels.official;
-        g.fillText(fitText(g, text, boardW - 16), x + boardW / 2, y + L.boardH / 2 + 1);
+        g.drawImage(sponsor, midX - iw / 2, midY - ih / 2, iw, ih);
+        continue;
       }
+
+      const title = String(race.name || "").trim();
+      const text = title && i % 2 === 0 ? title.toUpperCase() : labels.official;
+      const crown = H * 0.46;
+      g.font = `800 ${Math.round(H * 0.38)}px "Trebuchet MS", "Segoe UI", sans-serif`;
+      if ("letterSpacing" in g) g.letterSpacing = `${Math.max(1, Math.round(H * 0.04))}px`;
+      const room = boardW - skew - 20 - crown - 8;
+      const label = fitText(g, text, Math.max(40, room));
+      const textW = g.measureText(label).width;
+      const startX = midX - (crown + 8 + textW) / 2;
+
+      // Crown icon.
+      const cx = startX;
+      const cy = midY - crown * 0.5;
+      g.beginPath();
+      g.moveTo(cx, cy + crown * 0.85);
+      g.lineTo(cx, cy + crown * 0.28);
+      g.lineTo(cx + crown * 0.26, cy + crown * 0.55);
+      g.lineTo(cx + crown * 0.5, cy);
+      g.lineTo(cx + crown * 0.74, cy + crown * 0.55);
+      g.lineTo(cx + crown, cy + crown * 0.28);
+      g.lineTo(cx + crown, cy + crown * 0.85);
+      g.closePath();
+      const gold = g.createLinearGradient(0, cy, 0, cy + crown);
+      gold.addColorStop(0, "#d9f1ff");
+      gold.addColorStop(1, "#5aa8f5");
+      g.fillStyle = gold;
+      g.shadowColor = "rgba(120,200,255,0.8)";
+      g.shadowBlur = 6;
+      g.fill();
+      g.shadowBlur = 0;
+
+      g.fillStyle = "#ffffff";
+      g.textAlign = "left";
+      g.textBaseline = "middle";
+      g.fillText(label, startX + crown + 8, midY + 1);
+      if ("letterSpacing" in g) g.letterSpacing = "0px";
     }
+
+    g.restore();
   }
 
   function drawField(g, w, h, L, cam, t) {
