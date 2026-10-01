@@ -16,7 +16,21 @@ export function namesText(names) {
   return names.join("\n");
 }
 
-export function orderLabel({ algorithm, namesHash, clientSeed }) {
+export function paramsText(race) {
+  return [
+    `algorithm=${race.algorithm}`,
+    `race=${race.id}`,
+    `animal=${race.animal}`,
+    `durationMs=${race.durationMs}`,
+    `leadInMs=${race.leadInMs}`,
+    `createdAt=${race.createdAt}`,
+    `namesHash=${race.namesHash}`,
+    `seedHash=${race.seedHash}`,
+  ].join("\n");
+}
+
+export function orderLabel({ algorithm, namesHash, paramsHash, clientSeed }) {
+  if (algorithm === "race-v4") return `race-v4:order:${paramsHash}:${clientSeed}`;
   if (algorithm === "race-v3") return `race-v3:order:${namesHash}:${clientSeed}`;
   return "race-v2:order";
 }
@@ -64,7 +78,18 @@ export async function finishingOrder(count, seed, label) {
 export async function verifyRace(race) {
   const fair = race.fairness;
   const namesHash = await sha256Hex(namesText(race.names));
-  const checks = { namesHash: namesHash === fair.namesHash, seedHash: null, order: null, computed: [] };
+  const checks = { namesHash: namesHash === fair.namesHash, paramsHash: null, seedHash: null, order: null, audit: null, computed: [] };
+  if (fair.algorithm === "race-v4") {
+    const params = paramsText({ ...race, namesHash: fair.namesHash, seedHash: fair.seedHash, algorithm: fair.algorithm });
+    checks.paramsHash = (await sha256Hex(params)) === fair.paramsHash;
+  }
+  const created = (race.audit || []).find((entry) => entry.action === "race.created");
+  if (created) {
+    checks.audit =
+      created.data.seedHash === fair.seedHash &&
+      created.data.namesHash === fair.namesHash &&
+      (fair.algorithm !== "race-v4" || created.data.paramsHash === fair.paramsHash);
+  }
   if (!fair.serverSeed) return checks;
   checks.seedHash = (await sha256Hex(fair.serverSeed)) === fair.seedHash;
   const order = await finishingOrder(race.names.length, fair.serverSeed, orderLabel(fair));

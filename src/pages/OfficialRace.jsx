@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import RaceStage from "../components/RaceStage";
 import { api } from "../lib/api";
 import { me, publishAccount } from "../lib/auth";
+import { useT } from "../lib/i18n";
 import { usePageTitle } from "../lib/usePageTitle";
-import { ANIMALS, PALETTE, bakeSprite } from "../race/art";
+import { ANIMALS, PALETTE, bakeSprite, skinsFor } from "../race/art";
 
 const DURATIONS = [10, 15, 20, 30, 45, 60, 90, 120];
+const MAX_NAMES = 200;
 
 function cacheKey(id) {
   return `duck-live-race:${id}`;
@@ -24,8 +26,12 @@ function readCache(id) {
 
 function writeCache(race) {
   const payload = { race, serverNow: race.serverNow, localNow: Date.now() };
-  sessionStorage.setItem(cacheKey(race.id), JSON.stringify(payload));
-  sessionStorage.setItem("duck-live-race", race.id);
+  try {
+    sessionStorage.setItem(cacheKey(race.id), JSON.stringify(payload));
+    sessionStorage.setItem("duck-live-race", race.id);
+  } catch {
+    /* storage full or unavailable */
+  }
   return payload;
 }
 
@@ -34,22 +40,20 @@ function offsetOf(saved) {
 }
 
 function SignInNotice({ title, text }) {
+  const { t } = useT();
   return (
     <div className="mx-auto max-w-lg px-4 pb-16 pt-24 text-center">
       <h1 className="text-3xl font-bold">{title}</h1>
       <p className="mt-3 text-gray-600">{text}</p>
-      <button
-        type="button"
-        className="mt-6 rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white"
-        onClick={() => window.dispatchEvent(new Event("duck-open-signin"))}
-      >
-        Sign in
+      <button type="button" className="mt-6 rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white" onClick={() => window.dispatchEvent(new Event("duck-open-signin"))}>
+        {t("Sign in")}
       </button>
     </div>
   );
 }
 
 function RacePlayer({ id }) {
+  const { t } = useT();
   const cached = readCache(id);
   const [race, setRace] = useState(cached?.race || null);
   const [clockOffset, setClockOffset] = useState(cached ? offsetOf(cached) : 0);
@@ -60,7 +64,7 @@ function RacePlayer({ id }) {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
   const status = useRef(cached?.race?.status || "");
-  usePageTitle(race ? `${race.name} - Duck Race` : "Official Race - Duck Race");
+  usePageTitle(race ? race.name : t("Official race"));
 
   function accept(next) {
     const saved = writeCache(next);
@@ -132,40 +136,28 @@ function RacePlayer({ id }) {
   }
 
   if (authError && !race) {
-    return <SignInNotice title="Sign in to restore this race" text="The official result stays on the server. Sign in again on this browser to bring the ducks back to the clock." />;
+    return <SignInNotice title={t("Sign in to restore this race")} text={t("The official result stays on the server. Sign in again to bring the race back to the official clock.")} />;
   }
   if (missing) {
     return (
       <div className="mx-auto max-w-lg px-4 pb-16 pt-24 text-center">
-        <h1 className="text-3xl font-bold">Result not found</h1>
-        <p className="mt-3 text-gray-600">That result ID is not on this account.</p>
+        <h1 className="text-3xl font-bold">{t("Result not found")}</h1>
+        <p className="mt-3 text-gray-600">{t("That result ID is not on this account.")}</p>
         <Link to="/history" className="mt-6 inline-block font-semibold text-sky-600">
-          Back to race history
+          {t("Back to race history")}
         </Link>
       </div>
     );
   }
-  if (!race) {
-    return <p className="px-4 pb-16 pt-24 text-center text-gray-500">Restoring the official race…</p>;
-  }
+  if (!race) return <p className="px-4 pb-16 pt-24 text-center text-gray-500">{t("Restoring the official race…")}</p>;
 
-  return (
-    <RaceStage
-      key={race.id}
-      race={race}
-      clockOffset={clockOffset}
-      connected={connected}
-      credits={credits}
-      starting={starting}
-      startError={startError}
-      onStart={start}
-    />
-  );
+  return <RaceStage key={race.id} race={race} clockOffset={clockOffset} connected={connected} credits={credits} starting={starting} startError={startError} onStart={start} />;
 }
 
-const PREVIEW_COLORS = { rabbit: "#f8f9fa", frog: "#7ec41f", turtle: "#3f9b2a", snail: "#c4602a" };
+const PREVIEW_COLORS = { rabbit: "#f8f9fa", frog: "#7ec41f", fish: "#ffa94d", turtle: "#3f9b2a", snail: "#c4602a" };
 
 function AnimalPicker({ value, onChange }) {
+  const { t } = useT();
   const previews = useMemo(
     () =>
       Object.keys(ANIMALS).map((animal, index) => ({
@@ -174,9 +166,13 @@ function AnimalPicker({ value, onChange }) {
       })),
     []
   );
+  const skins = useMemo(() => {
+    const look = skinsFor({ id: `preview-${value}` });
+    return Array.from({ length: 8 }, (_, lane) => bakeSprite(value, look(lane)).toDataURL());
+  }, [value]);
   return (
     <fieldset>
-      <legend className="text-sm font-semibold">Animal and habitat</legend>
+      <legend className="text-sm font-semibold">{t("Animal and habitat")}</legend>
       <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
         {previews.map((item) => (
           <button
@@ -184,22 +180,32 @@ function AnimalPicker({ value, onChange }) {
             type="button"
             onClick={() => onChange(item.animal)}
             className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold ${value === item.animal ? "border-sky-500 bg-sky-50 text-sky-700" : "border-gray-200"}`}
+            aria-pressed={value === item.animal}
           >
             <img src={item.src} alt="" className="mx-auto h-10 w-14 object-contain" />
-            <span className="mt-1 block">{ANIMALS[item.animal].label}</span>
-            <span className="block font-normal text-gray-500">{ANIMALS[item.animal].habitat}</span>
+            <span className="mt-1 block">{t(ANIMALS[item.animal].label)}</span>
+            <span className="block font-normal text-gray-500">{t(ANIMALS[item.animal].habitat)}</span>
           </button>
         ))}
+      </div>
+      <div className="mt-3 rounded-xl bg-gray-50 p-3">
+        <p className="text-xs text-gray-500">{t("Every participant gets a different skin: color, pattern and accessory. Skins never change the odds.")}</p>
+        <div className="mt-2 flex flex-wrap gap-1">
+          {skins.map((src, index) => (
+            <img key={index} src={src} alt="" className="h-9 w-12 object-contain" />
+          ))}
+        </div>
       </div>
     </fieldset>
   );
 }
 
 function RaceSetup() {
+  const { t } = useT();
   const navigate = useNavigate();
   const [user, setUser] = useState(undefined);
-  const [name, setName] = useState("Official race");
-  const [names, setNames] = useState("Alex\nSam\nJordan\nRiley");
+  const [name, setName] = useState("");
+  const [names, setNames] = useState("Ana\nBruno\nCarla\nDiego");
   const [duration, setDuration] = useState("30");
   const [animal, setAnimal] = useState("rabbit");
   const [sponsors, setSponsors] = useState([]);
@@ -207,7 +213,13 @@ function RaceSetup() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const saveAfterSignIn = useRef(false);
-  usePageTitle("Official Race - Duck Race");
+  usePageTitle(t("Official race"));
+
+  const list = names
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const tooMany = list.length > MAX_NAMES;
 
   async function save() {
     setPending(true);
@@ -215,13 +227,7 @@ function RaceSetup() {
     try {
       const data = await api("/api/races", {
         method: "POST",
-        body: {
-          name,
-          names: names.split("\n"),
-          durationSec: Number(duration),
-          animal,
-          sponsorIds: chosen,
-        },
+        body: { name: name.trim() || t("Official race"), names: names.split("\n"), durationSec: Number(duration), animal, sponsorIds: chosen },
       });
       if (data.user) publishAccount(data.user);
       navigate(`/race/${data.race.id}`);
@@ -271,56 +277,66 @@ function RaceSetup() {
     save();
   }
 
+  function shuffleNames() {
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    setNames(copy.join("\n"));
+  }
+
   return (
-    <div className="mx-auto max-w-xl px-4 pb-16 pt-20">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Official race</p>
-      <h1 className="mt-1 text-3xl font-bold">Set up a race</h1>
-      <p className="mt-3 text-gray-600">
-        Saving this setup does not use a credit. One credit is used only when you start the race. Replaying a finished race does not use another credit.
-      </p>
-      {user && (
-        <p className="mt-3 font-semibold">
-          Balance: {user.credits} credit{user.credits === 1 ? "" : "s"}
-        </p>
-      )}
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <div className="mx-auto max-w-2xl px-4 pb-16 pt-20">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">{t("Official race")}</p>
+      <h1 className="mt-1 text-3xl font-bold">{t("Set up a race")}</h1>
+      <p className="mt-3 text-gray-600">{t("Saving this setup does not use a credit. One credit is used only when you start the race. Replaying a finished race does not use another credit.")}</p>
+      {user && <p className="mt-3 font-semibold">{t("Balance: {n}", { n: user.credits })}</p>}
+      {user && user.status === "restricted" && <p className="mt-3 text-sm text-red-600">{t("This account is restricted. Contact support.")}</p>}
+      <form onSubmit={onSubmit} className="mt-6 space-y-5">
         <label className="block text-sm font-semibold">
-          Race name
-          <input
-            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Official race"
-            maxLength={60}
-          />
+          {t("Race name")}
+          <input className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal" value={name} onChange={(event) => setName(event.target.value)} placeholder={t("Official race")} maxLength={60} />
         </label>
         <label className="block text-sm font-semibold">
-          Names, one per line
-          <textarea
-            className="mt-1 h-40 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal"
-            value={names}
-            onChange={(event) => setNames(event.target.value)}
-            required
-          />
+          <span className="flex items-center justify-between">
+            <span>{t("Participants, one per line")}</span>
+            <span className={`font-normal ${tooMany ? "text-red-600" : "text-gray-500"}`}>
+              {list.length}/{MAX_NAMES}
+            </span>
+          </span>
+          <textarea className="mt-1 h-44 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal" value={names} onChange={(event) => setNames(event.target.value)} required />
         </label>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <button type="button" className="rounded-lg bg-gray-100 px-3 py-1 font-semibold" onClick={shuffleNames}>
+            {t("Shuffle lanes")}
+          </button>
+          <button type="button" className="rounded-lg bg-gray-100 px-3 py-1 font-semibold" onClick={() => setNames([...new Set(list)].join("\n"))}>
+            {t("Remove duplicates")}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-gray-100 px-3 py-1 font-semibold"
+            onClick={() => setNames(Array.from({ length: Math.min(MAX_NAMES, Math.max(2, list.length || 10)) }, (_, index) => `#${index + 1}`).join("\n"))}
+          >
+            {t("Use numbers")}
+          </button>
+        </div>
         <AnimalPicker value={animal} onChange={setAnimal} />
         <label className="block text-sm font-semibold">
-          Race length
-          <select
-            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal"
-            value={duration}
-            onChange={(event) => setDuration(event.target.value)}
-          >
+          {t("Race length")}
+          <select className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal" value={duration} onChange={(event) => setDuration(event.target.value)}>
             {DURATIONS.map((seconds) => (
               <option key={seconds} value={seconds}>
-                {seconds} seconds
+                {t("{n} seconds", { n: seconds })}
               </option>
             ))}
           </select>
         </label>
         {sponsors.length > 0 && (
           <fieldset>
-            <legend className="text-sm font-semibold">Sponsor images</legend>
+            <legend className="text-sm font-semibold">{t("Your sponsor images")}</legend>
+            <p className="text-xs text-gray-500">{t("Platform sponsors always appear on the boards. You can add up to 8 of your own.")}</p>
             <div className="mt-2 space-y-2">
               {sponsors.map((sponsor) => (
                 <label key={sponsor.id} className="flex items-center gap-2 text-sm">
@@ -328,9 +344,7 @@ function RaceSetup() {
                     type="checkbox"
                     checked={chosen.includes(sponsor.id)}
                     onChange={(event) => {
-                      setChosen((current) =>
-                        event.target.checked ? [...current, sponsor.id].slice(0, 8) : current.filter((id) => id !== sponsor.id)
-                      );
+                      setChosen((current) => (event.target.checked ? [...current, sponsor.id].slice(0, 8) : current.filter((item) => item !== sponsor.id)));
                     }}
                   />
                   {sponsor.name}
@@ -340,8 +354,8 @@ function RaceSetup() {
           </fieldset>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white disabled:opacity-50" disabled={pending}>
-          {pending ? "Saving…" : "Save setup"}
+        <button type="submit" className="rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white disabled:opacity-50" disabled={pending || tooMany || list.length < 2}>
+          {pending ? t("Saving…") : t("Save setup")}
         </button>
       </form>
     </div>

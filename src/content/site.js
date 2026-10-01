@@ -1,14 +1,12 @@
+export const siteName = import.meta.env.VITE_SITE_NAME || "Animal Race";
+
+export const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || "";
+
 export const navItems = [
-  { to: "/race", label: "Official Race", icon: "trophy" },
-  { to: "/history", label: "Race History", icon: "list" },
+  { to: "/", label: "Home", icon: "house" },
+  { to: "/race", label: "Official race", icon: "trophy" },
+  { to: "/history", label: "Race history", icon: "list" },
+  { to: "/verify", label: "Verify a result", icon: "shield" },
   { to: "/credits", label: "Credits", icon: "credit" },
-  { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { to: "/dashboard", label: "My account", icon: "dashboard" },
 ];
-
-export const socials = [
-  { label: "YouTube", href: "https://www.youtube.com/channel/UCu1lkoKOVkCegtAoFOfdZ9A" },
-  { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61574622358534" },
-  { label: "TikTok", href: "https://www.tiktok.com/@bombom19483" },
-];
-
-export const supportEmail = "duckracegame@gmail.com";

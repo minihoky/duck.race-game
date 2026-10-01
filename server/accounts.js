@@ -1,26 +1,39 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { promisify } from "node:util";
+import { appendAudit } from "./audit.js";
+import { emptyState, openStore } from "./store.js";
 
 const scryptAsync = promisify(scrypt);
-const dataDir = path.join(process.cwd(), "server", "data");
-const dataFile = path.join(dataDir, "accounts.json");
 
 const VERIFY_MS = 24 * 60 * 60 * 1000;
 const RESET_MS = 60 * 60 * 1000;
 const SESSION_MS = 14 * 24 * 60 * 60 * 1000;
 
+export const USER_STATUSES = ["active", "restricted", "blocked"];
+
+let store = null;
+let state = emptyState();
+let readyPromise = null;
 let queue = Promise.resolve();
-let state = ensureCollections(load());
 const usedVerify = new Map();
 
-function load() {
-  try {
-    return JSON.parse(readFileSync(dataFile, "utf8"));
-  } catch {
-    return { users: [], sessions: [] };
+export function ready() {
+  if (!readyPromise) {
+    readyPromise = (async () => {
+      store = await openStore();
+      state = ensureCollections(await store.load());
+      return store;
+    })();
   }
+  return readyPromise;
+}
+
+export function storeKind() {
+  return store ? store.kind : "none";
+}
+
+export async function closeStore() {
+  if (store) await store.close();
 }
 
 function adminEmails() {
@@ -31,12 +44,6 @@ function adminEmails() {
 }
 
 function ensureCollections(data = state) {
-  if (!Array.isArray(data.users)) data.users = [];
-  if (!Array.isArray(data.sessions)) data.sessions = [];
-  if (!Array.isArray(data.ledger)) data.ledger = [];
-  if (!Array.isArray(data.payments)) data.payments = [];
-  if (!Array.isArray(data.races)) data.races = [];
-  if (!Array.isArray(data.sponsors)) data.sponsors = [];
   for (const user of data.users) applyRole(user);
   return data;
 }
@@ -44,17 +51,27 @@ function ensureCollections(data = state) {
 function applyRole(user) {
   if (!user.role) user.role = "user";
   if (!Number.isFinite(user.credits)) user.credits = 0;
+  if (!USER_STATUSES.includes(user.status)) user.status = "active";
   if (adminEmails().includes(user.email)) user.role = "admin";
   return user;
 }
 
-function persist() {
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(dataFile, JSON.stringify(state));
+async function persist() {
+  try {
+    await store.persist(state);
+  } catch (error) {
+    // The in-memory copy may now be ahead of the database; reload the last committed state.
+    console.error("Saving failed, reloading the last saved state.", error);
+    state = ensureCollections(await store.load());
+    throw error;
+  }
 }
 
 function update(fn) {
-  const run = queue.then(fn);
+  const previous = queue;
+  const run = ready()
+    .then(() => previous)
+    .then(fn);
   queue = run.then(
     () => {},
     () => {}
@@ -111,6 +128,8 @@ function publicUser(user) {
     verified: Boolean(user.verified),
     role: user.role,
     credits: user.credits,
+    status: user.status,
+    statusNote: user.status === "active" ? "" : user.statusNote || "",
   };
 }
 
@@ -123,6 +142,7 @@ export function registerAccount({ name, email, password }) {
     const existing = findEmail(email);
     const verify = token();
     if (existing && existing.verified) return { status: 409, error: "An account with this email already exists." };
+    if (existing && existing.status === "blocked") return { status: 403, error: "This account is blocked. Contact support." };
     const passwordHash = await hashPassword(password);
     const record = existing || {
       id: randomBytes(12).toString("hex"),
@@ -130,6 +150,7 @@ export function registerAccount({ name, email, password }) {
       createdAt: Date.now(),
       credits: 0,
       role: "user",
+      status: "active",
     };
     if (!Number.isFinite(record.credits)) record.credits = 0;
     if (!record.role) record.role = "user";
@@ -140,15 +161,18 @@ export function registerAccount({ name, email, password }) {
     record.verifyExpires = Date.now() + VERIFY_MS;
     record.resetTokenHash = "";
     record.resetExpires = 0;
-    if (!existing) state.users.push(record);
+    if (!existing) {
+      state.users.push(record);
+      appendAudit(state, { actorId: record.id, action: "user.registered", targetType: "user", targetId: record.id });
+    }
     applyRole(record);
-    persist();
+    await persist();
     return { status: 201, verifyToken: verify, email };
   });
 }
 
 export function verifyAccount(rawToken) {
-  return update(() => {
+  return update(async () => {
     const hash = digest(String(rawToken || ""));
     if ((usedVerify.get(hash) || 0) > Date.now()) return { status: 200 };
     const user = state.users.find((item) => item.verifyTokenHash && item.verifyTokenHash === hash);
@@ -157,19 +181,20 @@ export function verifyAccount(rawToken) {
     user.verifyTokenHash = "";
     user.verifyExpires = 0;
     usedVerify.set(hash, Date.now() + 10 * 60 * 1000);
-    persist();
+    appendAudit(state, { actorId: user.id, action: "user.verified", targetType: "user", targetId: user.id });
+    await persist();
     return { status: 200 };
   });
 }
 
 export function resendVerification(email) {
-  return update(() => {
+  return update(async () => {
     const user = findEmail(email);
-    if (!user || user.verified) return { status: 200 };
+    if (!user || user.verified || user.status === "blocked") return { status: 200 };
     const verify = token();
     user.verifyTokenHash = digest(verify);
     user.verifyExpires = Date.now() + VERIFY_MS;
-    persist();
+    await persist();
     return { status: 200, verifyToken: verify, email: user.email, name: user.name };
   });
 }
@@ -179,33 +204,34 @@ export function loginAccount({ email, password }) {
     const user = findEmail(email);
     const matches = user ? await checkPassword(password, user.passwordHash) : false;
     if (!user || !matches) return { status: 401, error: "Email or password is incorrect." };
-    if (!user.verified) return { status: 403, error: "Verify your email before signing in.", code: "unverified" };
     applyRole(user);
+    if (user.status === "blocked") return { status: 403, error: "This account is blocked. Contact support.", code: "blocked" };
+    if (!user.verified) return { status: 403, error: "Verify your email before signing in.", code: "unverified" };
     const session = token();
     state.sessions = state.sessions.filter((item) => item.expires > Date.now() && item.userId !== user.id);
     state.sessions.push({ tokenHash: digest(session), userId: user.id, expires: Date.now() + SESSION_MS });
-    persist();
+    await persist();
     return { status: 200, session, user: publicUser(user) };
   });
 }
 
 export function logoutAccount(rawToken) {
-  return update(() => {
+  return update(async () => {
     const hash = digest(String(rawToken || ""));
     state.sessions = state.sessions.filter((item) => item.tokenHash !== hash);
-    persist();
+    await persist();
     return { status: 200 };
   });
 }
 
 export function readSession(rawToken) {
-  ensureCollections();
   const hash = digest(String(rawToken || ""));
   const session = state.sessions.find((item) => item.tokenHash === hash && item.expires > Date.now());
   if (!session) return null;
   const user = state.users.find((item) => item.id === session.userId && item.verified);
   if (!user) return null;
   applyRole(user);
+  if (user.status === "blocked") return null;
   return user;
 }
 
@@ -224,21 +250,28 @@ export function devAdminOpen() {
 
 export function mutate(fn) {
   return update(async () => {
-    ensureCollections();
     const result = await fn(state);
-    if (!result || result.persist !== false) persist();
+    if (!result || result.persist !== false) await persist();
     return result;
   });
 }
 
+export function saveImage(id, buf) {
+  return ready().then(() => store.saveImage(id, buf));
+}
+
+export function readImage(id) {
+  return ready().then(() => store.readImage(id));
+}
+
 export function requestReset(email) {
-  return update(() => {
+  return update(async () => {
     const user = findEmail(email);
-    if (!user) return { status: 200 };
+    if (!user || user.status === "blocked") return { status: 200 };
     const reset = token();
     user.resetTokenHash = digest(reset);
     user.resetExpires = Date.now() + RESET_MS;
-    persist();
+    await persist();
     return { status: 200, resetToken: reset, email: user.email, name: user.name };
   });
 }
@@ -254,7 +287,8 @@ export function resetPassword(rawToken, password) {
     user.verified = true;
     user.verifyTokenHash = "";
     state.sessions = state.sessions.filter((item) => item.userId !== user.id);
-    persist();
+    appendAudit(state, { actorId: user.id, action: "user.password_reset", targetType: "user", targetId: user.id });
+    await persist();
     return { status: 200 };
   });
 }

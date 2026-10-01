@@ -68,8 +68,21 @@ function fitText(g, text, max) {
   return `${value}…`;
 }
 
-export function createRace(race, sponsorImages = []) {
+const DEFAULT_LABELS = {
+  finish: "FINISH",
+  official: "OFFICIAL RACE",
+  lineup: "LINEUP",
+  live: "LIVE",
+  result: "RESULT",
+  finalStretch: "FINAL STRETCH",
+  winner: "WINNER",
+  go: "GO!",
+};
+
+export function createRace(race, sponsorImages = [], labelSet = {}) {
+  const labels = { ...DEFAULT_LABELS, ...labelSet };
   const plan = buildPlan(race);
+  let lastPositions = [];
   const look = skinsFor(race);
   const animal = HABITATS[race.animal] ? race.animal : "rabbit";
   const habitat = HABITATS[animal];
@@ -249,7 +262,7 @@ export function createRace(race, sponsorImages = []) {
         g.font = `700 ${Math.round(L.boardH * 0.42)}px "Trebuchet MS", sans-serif`;
         g.textAlign = "center";
         g.textBaseline = "middle";
-        const text = i % 2 === 0 ? race.name.toUpperCase() : "OFFICIAL RACE";
+        const text = i % 2 === 0 ? race.name.toUpperCase() : labels.official;
         g.fillText(fitText(g, text, boardW - 16), x + boardW / 2, y + L.boardH / 2 + 1);
       }
     }
@@ -328,7 +341,7 @@ export function createRace(race, sponsorImages = []) {
       g.font = `800 13px "Trebuchet MS", sans-serif`;
       g.textAlign = "center";
       g.textBaseline = "middle";
-      g.fillText("FINISH", finishX, L.skyH - L.skyH * 0.35 - 10);
+      g.fillText(labels.finish, finishX, L.skyH - L.skyH * 0.35 - 10);
     }
   }
 
@@ -376,7 +389,8 @@ export function createRace(race, sponsorImages = []) {
 
     const spriteW = (L.spriteH * SPRITE_W) / SPRITE_H;
     const crowded = (L.fieldH / count) < L.spriteH * 0.8;
-    const labels = [];
+    const tags = [];
+    const positions = [];
     for (const track of plan.tracks) {
       const row = byLane.get(track.lane);
       const stagger = crowded && track.lane % 2 === 1 ? spriteW * 0.75 * (1 - Math.min(1, row.progress)) : 0;
@@ -434,14 +448,16 @@ export function createRace(race, sponsorImages = []) {
         g.textBaseline = "middle";
         g.fillText(String(track.place), x + sw * 0.9, y - sh * 0.55 + 1);
       }
-      if (labelled.has(track.lane)) labels.push({ track, x: x + sw * 0.45, y: y - sh * 0.62 + motion.dy, focus: follow === track.lane });
+      positions.push({ lane: track.lane, x, y: y - sh * 0.62 + motion.dy, w: sw, h: sh });
+      if (labelled.has(track.lane)) tags.push({ track, x: x + sw * 0.45, y: y - sh * 0.62 + motion.dy, focus: follow === track.lane });
     }
+    lastPositions = positions;
 
     const size = clamp(L.spriteH * 0.32, 10, 14);
     g.font = `700 ${size}px "Trebuchet MS", sans-serif`;
     g.textAlign = "center";
     g.textBaseline = "middle";
-    for (const label of labels) {
+    for (const label of tags) {
       const text = fitText(g, label.track.name, 110);
       const tw = g.measureText(text).width + 12;
       roundRect(g, label.x - tw / 2, label.y - size - 6, tw, size + 6, (size + 6) / 2);
@@ -485,7 +501,7 @@ export function createRace(race, sponsorImages = []) {
     g.fill();
     g.fillStyle = "#d6b25e";
     g.font = `800 11px "Trebuchet MS", sans-serif`;
-    const heading = status === "ready" ? "LINEUP" : t < plan.endMs ? "LIVE" : "RESULT";
+    const heading = status === "ready" ? labels.lineup : t < plan.endMs ? labels.live : labels.result;
     g.fillText(heading, bx + 10, by + 12);
     shown.forEach((row, index) => {
       const y = by + 24 + index * lineH + lineH / 2 - 2;
@@ -522,12 +538,12 @@ export function createRace(race, sponsorImages = []) {
       g.fillStyle = "#ffd43b";
       g.font = `900 ${L.compact ? 18 : 24}px "Trebuchet MS", sans-serif`;
       g.textAlign = "center";
-      g.fillText("FINAL STRETCH", w / 2, L.skyH * 0.32);
+      g.fillText(labels.finalStretch, w / 2, L.skyH * 0.32);
       g.globalAlpha = 1;
     }
 
     if (t >= plan.winner.finishMs) {
-      const text = `WINNER  ${plan.winner.name}`;
+      const text = `${labels.winner}  ${plan.winner.name}`;
       g.font = `900 ${L.compact ? 18 : 26}px "Trebuchet MS", sans-serif`;
       g.textAlign = "center";
       const tw = Math.min(w - 40, g.measureText(text).width + 40);
@@ -544,7 +560,7 @@ export function createRace(race, sponsorImages = []) {
     }
 
     if (status === "racing" && t < 700 && t > -3200) {
-      const label = t < 0 ? String(Math.ceil(-t / 1000)) : "GO!";
+      const label = t < 0 ? String(Math.ceil(-t / 1000)) : labels.go;
       const local = t < 0 ? 1 - ((-t % 1000) / 1000) : t / 700;
       g.save();
       g.globalAlpha = t < 0 ? 1 : 1 - local;
@@ -574,5 +590,26 @@ export function createRace(race, sponsorImages = []) {
     drawHud(g, w, h, L, t, rows, status);
   }
 
-  return { plan, sprites, draw };
+  function positionOf(lane) {
+    return lastPositions.find((item) => item.lane === lane) || null;
+  }
+
+  function hitTest(px, py) {
+    let best = null;
+    let bestDistance = Infinity;
+    for (const item of lastPositions) {
+      const inside = px >= item.x && px <= item.x + item.w && py >= item.y && py <= item.y + item.h;
+      const cx = item.x + item.w / 2;
+      const cy = item.y + item.h / 2;
+      const distance = Math.hypot(px - cx, py - cy) - (inside ? 1000 : 0);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = item;
+      }
+    }
+    if (!best) return null;
+    return bestDistance < Math.max(40, best.h) ? best.lane : null;
+  }
+
+  return { plan, sprites, draw, hitTest, positionOf };
 }

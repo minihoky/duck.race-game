@@ -1,148 +1,218 @@
-import { useSearchParams } from "react-router-dom";
-import { loadJson } from "../lib/storage";
-import { FeatureGrid, RelatedTools } from "../components/Marketing";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Icon, icons } from "../components/Icons";
+import { siteName } from "../content/site";
+import { useT } from "../lib/i18n";
 import { usePageTitle } from "../lib/usePageTitle";
+import { ANIMALS } from "../race/art";
+import { createRace } from "../race/engine";
 
-const steps = [
-  { title: "Set Up Ducks", text: "Add names or set the number of participants for your race" },
-  { title: "Set Race Time", text: "Choose how long you want the duck race to last" },
-  { title: "Start Racing", text: "Press start and watch the ducks compete!" },
-  { title: "View Results", text: "See the winner and full race leaderboard" },
+const DEMO_NAMES = ["Ana", "Bruno", "Carla", "Diego", "Elisa", "Felipe", "Gabi", "Heitor"];
+const DEMO_ORDER = Object.keys(ANIMALS);
+const DEMO_MS = 9000;
+const DEMO_LEAD = 2200;
+const DEMO_REST = 3200;
+
+function demoRace(round) {
+  const animal = DEMO_ORDER[round % DEMO_ORDER.length];
+  const lanes = DEMO_NAMES.map((_, lane) => lane);
+  for (let i = lanes.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+  }
+  const places = new Map(lanes.map((lane, index) => [lane, index + 1]));
+  let finish = DEMO_MS;
+  const gaps = lanes.map(() => 90 + Math.random() * 260);
+  const finishByPlace = gaps.map((gap, index) => (index === 0 ? finish : (finish += gap)));
+  return {
+    id: `demo-${round}-${Math.random().toString(36).slice(2, 8)}`,
+    animal,
+    durationMs: DEMO_MS,
+    leadInMs: DEMO_LEAD,
+    motionSeed: Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, "0"),
+    names: DEMO_NAMES,
+    entrants: DEMO_NAMES.map((name, lane) => ({ name, lane, place: places.get(lane), finishMs: finishByPlace[places.get(lane) - 1] })),
+  };
+}
+
+function DemoRace() {
+  const { t, lang } = useT();
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [round, setRound] = useState(0);
+  const race = useMemo(() => demoRace(round), [round]);
+  const labels = useMemo(
+    () => ({ finish: t("FINISH"), official: t("DEMO"), lineup: t("LINEUP"), live: t("LIVE"), result: t("RESULT"), finalStretch: t("FINAL STRETCH"), winner: t("WINNER"), go: t("GO!") }),
+    [lang]
+  );
+  const engine = useMemo(() => createRace(race, [], labels), [race, labels]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return undefined;
+    const g = canvas.getContext("2d");
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const started = performance.now();
+    let size = { w: 0, h: 0, ratio: 1 };
+    let frame = 0;
+    let visible = true;
+
+    function resize() {
+      const rect = wrap.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      size = { w: rect.width, h: rect.height, ratio };
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+    }
+
+    function tick(now) {
+      const elapsed = now - started;
+      const t = reduced ? engine.plan.endMs + 1500 : elapsed - DEMO_LEAD;
+      g.setTransform(size.ratio, 0, 0, size.ratio, 0, 0);
+      engine.draw(g, size.w, size.h, t, { status: t > engine.plan.endMs + 600 ? "finished" : "racing" });
+      if (!reduced && t > engine.plan.endMs + DEMO_REST) {
+        setRound((value) => value + 1);
+        return;
+      }
+      if (visible) frame = requestAnimationFrame(tick);
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      const next = entry.isIntersecting;
+      if (next && !visible) frame = requestAnimationFrame(tick);
+      visible = next;
+    });
+    observer.observe(wrap);
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(wrap);
+    resize();
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [engine]);
+
+  return (
+    <div ref={wrapRef} className="relative h-[300px] overflow-hidden rounded-3xl border border-[#d6b25e]/30 bg-[#0c1524] shadow-2xl sm:h-[380px]">
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-label={t("Demonstration race")} />
+      <span className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white">{t("Demo · not an official draw")}</span>
+    </div>
+  );
+}
+
+const FEATURES = [
+  {
+    icon: "shield",
+    title: "Provably fair",
+    text: "Before each race the server commits to a hidden seed and publishes its hash together with the list of names and race parameters. After the race, anyone can check the result.",
+  },
+  {
+    icon: "trophy",
+    title: "Five animals",
+    text: "Rabbits, frogs, fish, turtles and snails, each with its own scenery. Every participant gets a unique color and accessory.",
+  },
+  {
+    icon: "sparkles",
+    title: "Made to watch live",
+    text: "Tap a racer to follow it, cheer along, and follow the live commentary. The result was decided on the server before the start; the animation only shows it.",
+  },
+  {
+    icon: "users",
+    title: "Up to 200 names",
+    text: "Paste a list, remove duplicates, shuffle, or number entries. Each name gets its own lane.",
+  },
+  {
+    icon: "timer",
+    title: "Replays and history",
+    text: "Every finished race stays in your history with its full result, an exact replay, and a public verification page to share.",
+  },
+  {
+    icon: "credit",
+    title: "Simple credits",
+    text: "Setting up is free. One credit is used only when an official race starts. Pay with PIX, card or boleto through Mercado Pago.",
+  },
+];
+
+const STEPS = [
+  ["Create an account", "Sign up with your email and confirm the link we send."],
+  ["Buy credits", "Choose a package. One credit equals one official race."],
+  ["Set up the race", "Add the names, choose the animal and the duration."],
+  ["Start and share", "Run the race live and share the verification link with participants."],
 ];
 
 export default function Home() {
-  usePageTitle("Online Duck Race Name Picker - Free Duck Racing Game");
-  const [params] = useSearchParams();
-  const room = loadJson("duck-race-rooms", []).find((item) => item.id === params.get("room"));
+  const { t } = useT();
+  usePageTitle(t("Official animal races for prize draws"));
 
   return (
-    <div>
-      {room && (
-        <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-          <span className="font-semibold">{room.title}:</span> {room.names.join(", ")}
+    <div className="pt-16">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div>
+          <p className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-1.5 text-sm font-semibold text-sky-600">
+            <Icon className="h-4 w-4">{icons.shield}</Icon>
+            {t("Verifiable result")}
+          </p>
+          <h1 className="mt-5 text-4xl font-bold leading-tight text-white md:text-5xl">
+            {t("Prize draws as an animal race")}
+          </h1>
+          <p className="mt-5 max-w-xl text-lg text-gray-600">
+            {t("{site} turns your list of participants into a live race. The winner is drawn on the server with a public commitment, so anyone can confirm the result was not changed.", { site: siteName })}
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link to="/race" className="rounded-xl bg-sky-500 px-6 py-3 font-semibold text-white">
+              {t("Start an official race")}
+            </Link>
+            <Link to="/verify" className="rounded-xl bg-gray-100 px-6 py-3 font-semibold">
+              {t("Verify a result")}
+            </Link>
+          </div>
+          <p className="mt-4 text-sm text-gray-500">{t("Setting up is free. One credit is used when the race starts.")}</p>
         </div>
-      )}
-      <div id="game" className="game-stage">
-        <div className="game-bezel">
-          <iframe
-            title="duck race timers game"
-            src="/game/index.html"
-            className="game-screen"
-          />
-        </div>
-      </div>
+        <DemoRace />
+      </section>
 
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-5xl px-4">
-          <div className="mx-auto mb-16 max-w-4xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2">
-              <span className="text-xl">🦆</span>
-              <span className="text-sm font-medium text-sky-500">The #1 Name Picker Game</span>
-            </div>
-            <h1 className="mb-6 text-4xl font-bold leading-tight text-gray-900 md:text-6xl">
-              Free Duck Race
-              <span className="block text-sky-500">Name Picker</span>
-            </h1>
-            <p className="mx-auto max-w-2xl text-lg leading-relaxed text-gray-600 md:text-xl">
-              Ready, set, quack! Join the most exciting duck racing adventure that's perfect for classrooms, parties, and fun gatherings!
-            </p>
-          </div>
-          <FeatureGrid
-            items={[
-              { icon: "timer", title: "Quick Setup", text: "Ready to race in under 60 seconds. No registration required." },
-              { icon: "users", title: "Any Group Size", text: "Perfect for classrooms, teams, or any gathering from 2 to 100+ people." },
-              { icon: "sparkles", title: "Fun & Engaging", text: "Make random selection exciting with animated duck races." },
-            ]}
-          />
-          <div className="mt-20 text-center">
-            <div className="inline-flex flex-col items-center gap-8 rounded-2xl bg-gradient-to-r from-sky-50 to-cyan-50 p-8 sm:flex-row">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500 text-white">
-                  <Icon className="h-6 w-6">{icons.trophy}</Icon>
-                </div>
-                <div className="text-left">
-                  <p className="text-lg font-semibold text-gray-900">Trusted Worldwide</p>
-                  <p className="text-sm text-gray-500">by educators and teams</p>
-                </div>
+      <section className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-center text-3xl font-bold">{t("Why use {site}", { site: siteName })}</h2>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((feature) => (
+            <article key={feature.title} className="rounded-2xl bg-gray-50 p-6">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500 text-white">
+                <Icon className="h-5 w-5">{icons[feature.icon] || icons.sparkles}</Icon>
               </div>
-              <div className="flex gap-8">
-                {[
-                  ["500K+", "Users"],
-                  ["5M+", "Races"],
-                  ["4.9★", "Rating"],
-                ].map(([value, label]) => (
-                  <div key={label} className="text-center">
-                    <p className="text-3xl font-bold text-sky-500">{value}</p>
-                    <p className="text-sm text-gray-500">{label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+              <h3 className="mt-4 text-lg font-semibold">{t(feature.title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600">{t(feature.text)}</p>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section id="how-to-play" className="bg-gray-50 py-20">
-        <div className="mx-auto max-w-5xl px-4">
-          <div className="mb-16 text-center">
-            <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-wider text-sky-500">Getting Started</span>
-            <h2 className="mb-4 text-3xl font-bold text-gray-900 md:text-4xl">How to Play</h2>
-            <p className="mx-auto max-w-2xl text-lg text-gray-600">Get started in just a few simple steps. No account needed!</p>
-          </div>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <div key={step.title} className="relative rounded-2xl bg-white p-8 text-center shadow-sm">
-                <div className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-white">
-                  {index + 1}
-                </div>
-                <h3 className="mb-2 text-lg font-semibold">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-gray-600">{step.text}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-16 text-center">
-            <div className="inline-flex items-center gap-3 rounded-xl bg-sky-50 px-6 py-4 text-sky-600">
-              <span className="text-2xl">💡</span>
-              <p>
-                <span className="font-semibold">Pro tip:</span> You can save your name lists for future races!
-              </p>
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-center text-3xl font-bold">{t("How it works")}</h2>
+        <ol className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {STEPS.map(([title, text], index) => (
+            <li key={title} className="relative rounded-2xl bg-gray-50 p-6">
+              <span className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-white">{index + 1}</span>
+              <h3 className="font-semibold">{t(title)}</h3>
+              <p className="mt-2 text-sm text-gray-600">{t(text)}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <section className="bg-gray-50 py-20">
-        <div className="mx-auto max-w-4xl px-4 text-center">
-          <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-wider text-sky-500">Our Story</span>
-          <h2 className="mb-4 text-3xl font-bold md:text-4xl">About Us</h2>
-          <div className="rounded-3xl bg-white p-8 shadow-sm md:p-12">
-            <p className="mb-10 text-lg leading-relaxed text-gray-600 md:text-xl">
-              We are a passionate team of developers dedicated to creating fun and engaging online games. Duck Race is our latest project designed to bring joy and excitement to classrooms, offices, and gatherings worldwide.
-            </p>
-            <div className="grid grid-cols-1 gap-6 text-left md:grid-cols-3">
-              {[
-                ["Modern Tech", "Built with latest web technologies"],
-                ["Fun First", "Designed for engagement"],
-                ["Always Improving", "Regular updates & features"],
-              ].map(([title, text]) => (
-                <div key={title} className="rounded-xl bg-gray-50 p-4">
-                  <h4 className="font-semibold">{title}</h4>
-                  <p className="text-sm text-gray-500">{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+      <section className="mx-auto max-w-4xl px-4 pb-20 pt-6">
+        <div className="rounded-3xl bg-gray-50 p-8 text-center">
+          <h2 className="text-2xl font-bold">{t("How the draw stays honest")}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-gray-600">
+            {t("The order is computed from a secret server seed, the list of names, the race parameters and a seed chosen by your browser at start time. The server publishes the hash of its seed before the start and reveals the seed after the finish. Changing any name or parameter changes the published hashes.")}
+          </p>
+          <Link to="/verify" className="mt-6 inline-block font-semibold text-sky-600">
+            {t("See how to verify a race")} →
+          </Link>
         </div>
       </section>
-
-      <RelatedTools
-        items={[
-          { title: "Wheel of Names", text: "Need a random name picker? Try our Wheel of Names tool for fair and exciting selections in classrooms and events.", to: "/wheel-of-names" },
-          { title: "Countdown Clock", text: "Need a free online countdown timer? Use our analog countdown clock with alarm sounds and fullscreen mode.", to: "/countdown-clock" },
-        ]}
-      />
-
     </div>
   );
 }

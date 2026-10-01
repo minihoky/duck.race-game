@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { siteName } from "./i18n.js";
 
 const API = "https://api.mercadopago.com";
 
@@ -46,12 +47,13 @@ async function mpFetch(token, path, options = {}) {
 
 export async function createPreference({ token, payment, origin, payerEmail }) {
   const back = `${origin}/checkout/${payment.id}`;
+  const site = siteName();
   const payload = {
     items: [
       {
         id: payment.packageId,
-        title: `${payment.credits} Duck Race credits (${payment.packageName})`,
-        description: "Credits stay inside Duck Race and are not convertible to cash.",
+        title: `${payment.credits} créditos ${site} (${payment.packageName})`,
+        description: `Créditos de uso exclusivo no ${site}, sem conversão em dinheiro.`,
         quantity: 1,
         currency_id: payment.currency,
         unit_price: payment.amount / 100,

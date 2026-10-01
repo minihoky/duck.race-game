@@ -1,10 +1,17 @@
+import { localeOf } from "./i18n";
+
 export function formatWhen(ms) {
   if (!ms) return "";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(ms);
+  return new Intl.DateTimeFormat(localeOf(), { dateStyle: "medium", timeStyle: "short" }).format(ms);
 }
 
-export function formatMoney(cents, currency = "USD") {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format((Number(cents) || 0) / 100);
+export function formatExact(ms) {
+  if (!ms) return "";
+  return new Intl.DateTimeFormat(localeOf(), { dateStyle: "short", timeStyle: "medium" }).format(ms) + ` (${new Date(ms).toISOString()})`;
+}
+
+export function formatMoney(cents, currency = "BRL") {
+  return new Intl.NumberFormat(localeOf(), { style: "currency", currency }).format((Number(cents) || 0) / 100);
 }
 
 export function formatClock(ms) {
