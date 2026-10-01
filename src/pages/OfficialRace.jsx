@@ -163,7 +163,7 @@ function RacePlayer({ id }) {
   );
 }
 
-const PREVIEW_COLORS = { rabbit: "#f8f9fa", frog: "#7ec41f" };
+const PREVIEW_COLORS = { rabbit: "#f8f9fa", frog: "#7ec41f", turtle: "#3f9b2a" };
 
 function AnimalPicker({ value, onChange }) {
   const previews = useMemo(

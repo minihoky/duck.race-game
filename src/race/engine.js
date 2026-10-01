@@ -333,8 +333,23 @@ export function createRace(race, sponsorImages = []) {
       const hop = moving ? Math.abs(Math.sin(stride * 0.7)) : 0;
       return { dy: -hop * L.spriteH * 0.32, rot: moving ? -0.12 * Math.cos(stride * 0.7) : 0, squash: moving ? 1 + (1 - hop) * 0.08 : 1 };
     }
-    if (animal === "fish") return { dy: Math.sin(stride * 1.4) * L.spriteH * 0.05, rot: Math.sin(stride * 2.2) * 0.1, squash: 1 };
-    if (animal === "turtle") return { dy: moving ? -Math.abs(Math.sin(stride * 1.6)) * L.spriteH * 0.04 : 0, rot: moving ? Math.sin(stride * 1.6) * 0.05 : 0, squash: 1 };
+    if (animal === "fish") {
+      const swimming = moving && progress < 1.01;
+      const beat = swimming ? stride * 0.9 : t / 900 + track.phase;
+      const cycle = (((beat / (Math.PI * 2)) % 1) + 1) % 1;
+      const sway = Math.sin(beat);
+      return {
+        dy: Math.sin(beat * 0.5 + track.phase) * L.spriteH * 0.05,
+        rot: swimming ? -sway * 0.035 : 0,
+        squash: 1,
+        frame: 1 + Math.floor(cycle * 8),
+      };
+    }
+    if (animal === "turtle") {
+      if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0 };
+      const cycle = (((stride * 0.5) % 1) + 1) % 1;
+      return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 8) };
+    }
     if (animal === "seahorse") return { dy: Math.sin(stride * 0.9 + calm) * L.spriteH * 0.12, rot: Math.sin(stride * 0.9) * 0.08 - 0.05, squash: 1 };
     if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0 };
     const cycle = (((stride * 0.45) % 1) + 1) % 1;
