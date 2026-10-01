@@ -1,45 +1,6 @@
-# Content Signals (https://contentsignals.org/)
-# Declares AI content usage preferences for this site.
-Content-Signal: ai-train=no, search=yes, ai-input=yes
-
 User-agent: *
-Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 Disallow: /api/
-Disallow: /payment-cancel/
-Disallow: /payment-success/
-
-User-agent: Googlebot
-Allow: /
-Disallow: /api/
-
-User-agent: Googlebot-Image
-Allow: /
-
-User-agent: Googlebot-Mobile
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-Disallow: /api/
-
-User-agent: Slurp
-Allow: /
-Disallow: /api/
-
-User-agent: Baiduspider
-Allow: /
-Disallow: /api/
-
-User-agent: Yandex
-Allow: /
-Disallow: /api/
-Host: duckrace-game.com
-
-User-agent: DuckDuckBot
-Allow: /
-Disallow: /api/
-
-Sitemap: https://www.duckrace-game.com/sitemap.xml
-
-Crawl-delay: 3
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /checkout/

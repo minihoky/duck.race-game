@@ -1,4 +1,5 @@
 import { loadEnv } from "vite";
+import { ready } from "./accounts.js";
 import { authMiddleware } from "./http.js";
 
 function applyEnv(mode) {
@@ -11,13 +12,15 @@ function applyEnv(mode) {
 
 export function authApi() {
   return {
-    name: "duck-auth",
-    configureServer(server) {
+    name: "platform-api",
+    async configureServer(server) {
       applyEnv(server.config.mode);
+      await ready();
       server.middlewares.use(authMiddleware);
     },
-    configurePreviewServer(server) {
+    async configurePreviewServer(server) {
       applyEnv("production");
+      await ready();
       server.middlewares.use(authMiddleware);
     },
   };

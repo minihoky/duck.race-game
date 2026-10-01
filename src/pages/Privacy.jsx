@@ -1,29 +1,59 @@
 import { Link } from "react-router-dom";
-import { Legal } from "./Terms";
+import { siteName, supportEmail } from "../content/site";
+import { useT } from "../lib/i18n";
 import { usePageTitle } from "../lib/usePageTitle";
+import { Legal } from "./Terms";
 
-const sections = [
-  ["1. Introduction", ["Welcome to Duck Race (\"we,\" \"our,\" or \"us\"). We respect your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website, mobile application, and services (collectively, the \"Services\").", "Please read this Privacy Policy carefully. If you do not agree with the terms of this Privacy Policy, please do not access or use our Services."]],
-  ["2. Information We Collect", ["2.1 Personal Data", "We may collect personal information that you voluntarily provide to us when you register for an account, express interest in obtaining information about us or our Services, or otherwise contact us. The personal information we collect may include:"], ["Email address", "First and last name (if provided)", "Credit balance, credit purchases, and official race results", "Sponsor images you upload", "Usage data and preferences"], ["2.2 Automatically Collected Information", "When you access or use our Services, we may automatically collect certain information, including:"], ["Device information (such as your IP address, browser type, and operating system)", "Usage information (such as pages visited, time spent on pages, and links clicked)", "Location information (with your consent)", "Cookies and similar tracking technologies"]],
-  ["3. How We Use Your Information", ["We may use the information we collect for various purposes, including to:"], ["Provide, maintain, and improve our Services", "Process transactions and manage your account", "Send you technical notices, updates, security alerts, and support messages", "Respond to your comments, questions, and requests", "Personalize your experience and deliver content relevant to your interests", "Monitor and analyze trends, usage, and activities in connection with our Services", "Detect, prevent, and address technical issues, fraud, or illegal activities", "Comply with legal obligations"]],
-  ["4. How We Share Your Information", ["We may share your information in the following circumstances:"], ["Service Providers: We may share your information with third-party vendors, service providers, contractors, or agents who perform services for us or on our behalf.", "Business Transfers: If we are involved in a merger, acquisition, or sale of all or a portion of our assets, your information may be transferred as part of that transaction.", "Legal Requirements: We may disclose your information if required to do so by law or in response to valid requests by public authorities.", "With Your Consent: We may share your information with your consent or as otherwise disclosed at the time of data collection or sharing."], ["We do not sell your personal information to third parties."]],
-  ["5. Cookies and Tracking Technologies", ["We use cookies and similar tracking technologies to track activity on our Services and hold certain information. Cookies are files with a small amount of data that may include an anonymous unique identifier.", "You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent. However, if you do not accept cookies, you may not be able to use some portions of our Services."]],
-  ["6. Data Security", ["We have implemented appropriate technical and organizational security measures designed to protect the security of any personal information we process. However, please also remember that we cannot guarantee that the internet itself is 100% secure."]],
-  ["7. Data Retention", ["We will retain your personal information only for as long as is necessary for the purposes set out in this Privacy Policy. We will retain and use your information to the extent necessary to comply with our legal obligations, resolve disputes, and enforce our policies."]],
-  ["8. Children's Privacy", ["Our Services are not intended for children under the age of 13. We do not knowingly collect personally identifiable information from children under 13. If you are a parent or guardian and you are aware that your child has provided us with personal information, please contact us so that we can take necessary actions."]],
-  ["9. Your Privacy Rights", ["Depending on your location, you may have certain rights regarding your personal information, including:"], ["The right to access personal information we hold about you", "The right to request correction of inaccurate personal information", "The right to request deletion of your personal information", "The right to object to processing of your personal information", "The right to data portability", "The right to withdraw consent"], ["To exercise these rights, please contact us using the information provided in the \"Contact Us\" section below."]],
-  ["10. Third-Party Services", ["Our Services may contain links to third-party websites or services that are not owned or controlled by Duck Race. We have no control over and assume no responsibility for the content, privacy policies, or practices of any third-party websites or services."]],
-  ["11. Changes to This Privacy Policy", ["We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the \"Last Updated\" date at the top of this Privacy Policy. You are advised to review this Privacy Policy periodically for any changes."]],
-  ["12. Contact Us", ["If you have any questions about this Privacy Policy, please contact us at:", "Email: duckracegame@gmail.com", "By using Duck Race, you acknowledge that you have read and understood this Privacy Policy."]],
-];
+const UPDATED = { pt: "2 de outubro de 2026", en: "October 2, 2026" };
+
+function sections(lang, site, email) {
+  if (lang === "pt") {
+    return [
+      ["1. Quem somos", [`Esta Política explica como o ${site} trata dados pessoais, de acordo com a Lei Geral de Proteção de Dados (Lei 13.709/2018 – LGPD).`]],
+      ["2. Dados que coletamos", ["Dados de conta: nome, e-mail e senha (armazenada apenas como hash).", "Dados de uso: corridas criadas, nomes dos participantes informados pelo organizador, resultados, créditos e histórico de compras.", "Dados de pagamento: identificador e situação do pagamento no Mercado Pago. Não recebemos nem armazenamos dados de cartão.", "Dados técnicos: endereço IP e informações do navegador, usados para segurança e limite de tentativas.", "Imagens de patrocinadores enviadas pelo organizador."]],
+      ["3. Para que usamos", ["Criar e manter sua conta e confirmar seu e-mail.", "Executar corridas oficiais, registrar resultados e permitir a verificação pública.", "Processar compras de créditos e manter o histórico contábil.", "Prevenir fraude e abuso e manter o registro de auditoria.", "Cumprir obrigações legais."]],
+      ["4. Bases legais", ["Execução de contrato (prestação do serviço), cumprimento de obrigação legal (registros fiscais e contábeis) e legítimo interesse (segurança e prevenção a fraude)."]],
+      ["5. Dados públicos", ["A página de verificação de uma corrida é pública para quem tiver o link e mostra o nome da corrida, os nomes dos participantes e o resultado. Não informe dados sensíveis nos nomes."]],
+      ["6. Compartilhamento", ["Mercado Pago, para processar pagamentos.", "Provedores de hospedagem, banco de dados e envio de e-mail que operam o serviço.", "Autoridades, quando exigido por lei.", "Não vendemos dados pessoais."]],
+      ["7. Cookies", ["Usamos um cookie de sessão estritamente necessário para manter você conectado. A preferência de idioma e de som fica salva no seu navegador. Não usamos cookies de publicidade."]],
+      ["8. Retenção", ["Mantemos os dados enquanto a conta existir. Registros de corridas, pagamentos e auditoria são mantidos pelo prazo necessário para comprovar resultados e cumprir obrigações legais, mesmo após o encerramento da conta."]],
+      ["9. Seus direitos", ["Você pode pedir confirmação de tratamento, acesso, correção, anonimização, portabilidade ou eliminação dos seus dados, e revogar consentimentos, escrevendo para o e-mail abaixo."]],
+      ["10. Segurança", ["Usamos conexões criptografadas, senhas com hash, cookies protegidos e registro de auditoria encadeado. Nenhum sistema é totalmente seguro, mas trabalhamos para proteger seus dados."]],
+      ["11. Contato", [`Encarregado de dados e dúvidas sobre privacidade: ${email}`]],
+    ];
+  }
+  return [
+    ["1. Who we are", [`This Policy explains how ${site} handles personal data under Brazil's General Data Protection Law (Law 13,709/2018 – LGPD).`]],
+    ["2. Data we collect", ["Account data: name, email, and password (stored only as a hash).", "Usage data: races you create, participant names entered by the organizer, results, credits, and purchase history.", "Payment data: the Mercado Pago payment identifier and status. We do not receive or store card details.", "Technical data: IP address and browser information, used for security and rate limiting.", "Sponsor images uploaded by the organizer."]],
+    ["3. How we use it", ["To create and maintain your account and confirm your email.", "To run official races, record results, and allow public verification.", "To process credit purchases and keep the credit ledger.", "To prevent fraud and abuse and keep the audit log.", "To meet legal obligations."]],
+    ["4. Legal bases", ["Performance of contract (providing the service), legal obligation (tax and accounting records), and legitimate interest (security and fraud prevention)."]],
+    ["5. Public data", ["A race's verification page is public to anyone with the link and shows the race name, the participants' names, and the result. Do not put sensitive data in names."]],
+    ["6. Sharing", ["Mercado Pago, to process payments.", "Hosting, database, and email providers that operate the service.", "Authorities, when required by law.", "We do not sell personal data."]],
+    ["7. Cookies", ["We use one strictly necessary session cookie to keep you signed in. Your language and sound preferences are saved in your browser. We do not use advertising cookies."]],
+    ["8. Retention", ["We keep data while the account exists. Race, payment, and audit records are kept as long as needed to prove results and meet legal obligations, even after the account is closed."]],
+    ["9. Your rights", ["You can ask for confirmation of processing, access, correction, anonymization, portability, or deletion of your data, and withdraw consent, by writing to the email below."]],
+    ["10. Security", ["We use encrypted connections, hashed passwords, protected cookies, and a hash-chained audit log. No system is completely secure, but we work to protect your data."]],
+    ["11. Contact", [`Data protection contact and privacy questions: ${email}`]],
+  ];
+}
 
 export default function Privacy() {
-  usePageTitle("Free Duck Race Game - Privacy Policy");
+  const { t, lang } = useT();
+  usePageTitle(t("Privacy Policy"));
   return (
     <Legal
-      title="Privacy Policy"
-      sections={sections}
-      footer={<p>For information about our terms of use, please see our <Link className="text-sky-600 underline" to="/terms">Terms of Service</Link>.</p>}
+      title={t("Privacy Policy")}
+      updated={UPDATED[lang] || UPDATED.en}
+      sections={sections(lang, siteName, supportEmail)}
+      footer={
+        <p>
+          {t("For the rules of use, see the")}{" "}
+          <Link className="text-sky-600 underline" to="/terms">
+            {t("Terms of Service")}
+          </Link>
+          .
+        </p>
+      }
     />
   );
 }

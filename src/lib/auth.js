@@ -1,18 +1,7 @@
-async function post(path, body) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(body || {}),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data.error || "Something went wrong.");
-    error.code = data.code;
-    error.status = response.status;
-    throw error;
-  }
-  return data;
+import { api } from "./api";
+
+function post(path, body) {
+  return api(path, { method: "POST", body: body || {} });
 }
 
 export function register(body) {
@@ -44,10 +33,12 @@ export function resetPassword(token, password) {
 }
 
 export async function me() {
-  const response = await fetch("/api/auth/me", { credentials: "same-origin" });
-  if (!response.ok) return null;
-  const data = await response.json().catch(() => ({}));
-  return data.user || null;
+  try {
+    const data = await api("/api/auth/me");
+    return data.user || null;
+  } catch {
+    return null;
+  }
 }
 
 export function publishAccount(user) {

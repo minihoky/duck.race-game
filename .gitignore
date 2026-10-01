@@ -4,3 +4,5 @@ server/data
 .env
 .env.*
 !.env.example
+_vite-err.txt
+_vite-out.txt

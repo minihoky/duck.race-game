@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { siteName } from "./i18n.js";
 
 let transport;
 
@@ -18,9 +19,9 @@ function transporter() {
 }
 
 export async function sendMail({ to, subject, text }) {
-  const from = process.env.MAIL_FROM || "Duck Race <duckracegame@gmail.com>";
   const smtp = transporter();
   if (!smtp) return { delivered: false };
+  const from = process.env.MAIL_FROM || `${siteName()} <${process.env.SMTP_USER || "no-reply@localhost"}>`;
   await smtp.sendMail({ from, to, subject, text });
   return { delivered: true };
 }
