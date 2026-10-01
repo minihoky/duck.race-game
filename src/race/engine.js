@@ -24,31 +24,34 @@ const HABITATS = {
     marsh: true,
   },
   fish: {
-    sky: ["#9cc3f5", "#e1ecfb"],
+    sky: ["#6db4f2", "#f2f9ff"],
     far: "#7486a1",
-    mid: "#2f6b45",
-    surface: ["#2fb2d4", "#0d6e8e"],
-    mark: "rgba(255,255,255,0.38)",
-    lane: "rgba(255,255,255,0.08)",
+    mid: "#1f6f52",
+    surface: ["#3cc4de", "#0a5a85"],
+    mark: "rgba(255,255,255,0.6)",
+    lane: "rgba(255,255,255,0.1)",
     decor: "pine",
+    stream: true,
   },
   turtle: {
-    sky: ["#f7955a", "#fde7a3"],
+    sky: ["#2c8ee0", "#ffe8b8"],
     far: "#2b9fd9",
-    mid: "#1f5c45",
-    surface: ["#f3dba6", "#ddb26e"],
-    mark: "rgba(150,100,40,0.28)",
-    lane: "rgba(120,80,30,0.08)",
+    mid: "#238048",
+    surface: ["#f8e6b4", "#e2b96f"],
+    mark: "rgba(160,108,48,0.4)",
+    lane: "rgba(120,80,30,0.1)",
     decor: "palm",
+    beach: true,
   },
   snail: {
-    sky: ["#a9dcef", "#f1f9ec"],
+    sky: ["#8fd3f4", "#f6fbe8"],
     far: "#7fb35a",
     mid: "#e0443a",
-    surface: ["#7cb350", "#4a7f34"],
-    mark: "rgba(255,255,255,0.3)",
-    lane: "rgba(30,60,20,0.08)",
+    surface: ["#80cb7a", "#3d9255"],
+    mark: "rgba(16,90,46,0.45)",
+    lane: "rgba(255,255,255,0.12)",
     decor: "mushroom",
+    garden: true,
   },
 };
 
@@ -332,11 +335,417 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     g.restore();
   }
 
+  function peaks(g, w, base, height, cell, offset, key, color, snow) {
+    const first = Math.floor(offset / cell) - 1;
+    for (let i = first; i < first + Math.ceil(w / cell) + 3; i += 1) {
+      const rand = mulberry32(hashString(`${key}:${i}`));
+      const x0 = i * cell - offset - cell * 0.3;
+      const apexX = x0 + cell * (0.35 + rand() * 0.3);
+      const h = height * (0.55 + rand() * 0.45);
+      const span = cell * 1.25;
+      g.fillStyle = color;
+      g.beginPath();
+      g.moveTo(x0, base + 4);
+      g.lineTo(apexX - span * 0.12, base - h * 0.55);
+      g.lineTo(apexX, base - h);
+      g.lineTo(apexX + span * 0.14, base - h * 0.6);
+      g.lineTo(x0 + span, base + 4);
+      g.closePath();
+      g.fill();
+      if (snow) {
+        const cap = h * 0.34;
+        g.fillStyle = snow;
+        g.beginPath();
+        g.moveTo(apexX, base - h);
+        g.lineTo(apexX + span * 0.075, base - h + cap * 0.9);
+        g.lineTo(apexX + span * 0.03, base - h + cap * 0.7);
+        g.lineTo(apexX - span * 0.01, base - h + cap * 1.1);
+        g.lineTo(apexX - span * 0.05, base - h + cap * 0.75);
+        g.lineTo(apexX - span * 0.085, base - h + cap * 0.95);
+        g.closePath();
+        g.fill();
+      }
+    }
+  }
+
+  function drawStreamBackdrop(g, w, L, cam, t) {
+    const top = L.skyH;
+    const sky = g.createLinearGradient(0, 0, 0, top + 4);
+    sky.addColorStop(0, "#4b9fee");
+    sky.addColorStop(0.6, "#a9d6fa");
+    sky.addColorStop(1, "#eef8ff");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, top + 6);
+
+    const tile = 300;
+    const drift = cam * 0.05 + (Math.max(0, t) / 1000) * 6;
+    const firstCloud = Math.floor(drift / tile) - 1;
+    for (let i = firstCloud; i < firstCloud + Math.ceil(w / tile) + 3; i += 1) {
+      const rand = mulberry32(hashString(`scloud:${i}`));
+      drawCloud(g, i * tile - drift + rand() * tile * 0.4, top * (0.1 + rand() * 0.3), top * (0.1 + rand() * 0.07), 0.8);
+    }
+
+    peaks(g, w, top + 4, top * 0.95, 240, cam * 0.06, "alp1", "#8aa6d6", "rgba(255,255,255,0.95)");
+    peaks(g, w, top + 4, top * 0.7, 190, cam * 0.1 + 90, "alp2", "#6c8fc4", "rgba(238,246,255,0.9)");
+    ridge(g, w, top + 4, top * 0.36, 120, cam * 0.2 + 50, 3.2, "#2f7d62");
+    ridge(g, w, top + 4, top * 0.26, 90, cam * 0.32 + 20, 1.7, "#216a52");
+
+    const mist = g.createLinearGradient(0, top * 0.5, 0, top + 4);
+    mist.addColorStop(0, "rgba(255,255,255,0)");
+    mist.addColorStop(1, "rgba(235,248,255,0.45)");
+    g.fillStyle = mist;
+    g.fillRect(0, top * 0.5, w, top * 0.55);
+
+    // Forest bank behind the fence.
+    const back = g.createLinearGradient(0, top, 0, top + L.boardH + 10);
+    back.addColorStop(0, "#2a7358");
+    back.addColorStop(1, "#14463a");
+    g.fillStyle = back;
+    g.fillRect(0, top + 3, w, L.boardH + 8);
+  }
+
+  function drawSailboat(g, x, y, size) {
+    g.save();
+    g.fillStyle = "rgba(255,255,255,0.95)";
+    g.beginPath();
+    g.moveTo(x, y - size);
+    g.lineTo(x + size * 0.55, y - size * 0.1);
+    g.lineTo(x, y - size * 0.1);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(255,226,170,0.95)";
+    g.beginPath();
+    g.moveTo(x - size * 0.08, y - size * 0.85);
+    g.lineTo(x - size * 0.5, y - size * 0.1);
+    g.lineTo(x - size * 0.08, y - size * 0.1);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#e0584a";
+    g.beginPath();
+    g.moveTo(x - size * 0.6, y - size * 0.04);
+    g.lineTo(x + size * 0.65, y - size * 0.04);
+    g.lineTo(x + size * 0.45, y + size * 0.14);
+    g.lineTo(x - size * 0.4, y + size * 0.14);
+    g.closePath();
+    g.fill();
+    g.restore();
+  }
+
+  function drawBeachBackdrop(g, w, L, cam, t) {
+    const top = L.skyH;
+    const horizon = top * 0.66;
+    const sky = g.createLinearGradient(0, 0, 0, horizon + 2);
+    sky.addColorStop(0, "#2a8be0");
+    sky.addColorStop(0.55, "#86d3f1");
+    sky.addColorStop(1, "#ffe8b8");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, top + 6);
+
+    const sunX = w * 0.78;
+    const sunY = horizon - top * 0.08;
+    const glow = g.createRadialGradient(sunX, sunY, 0, sunX, sunY, top * 0.95);
+    glow.addColorStop(0, "rgba(255,244,196,0.95)");
+    glow.addColorStop(0.25, "rgba(255,232,170,0.45)");
+    glow.addColorStop(1, "rgba(255,232,170,0)");
+    g.fillStyle = glow;
+    g.fillRect(0, 0, w, horizon + 2);
+    g.fillStyle = "#fff8da";
+    g.beginPath();
+    g.arc(sunX, sunY, top * 0.085, 0, Math.PI * 2);
+    g.fill();
+
+    const tile = 320;
+    const drift = cam * 0.05 + (Math.max(0, t) / 1000) * 6;
+    const firstCloud = Math.floor(drift / tile) - 1;
+    for (let i = firstCloud; i < firstCloud + Math.ceil(w / tile) + 3; i += 1) {
+      const rand = mulberry32(hashString(`bcloud:${i}`));
+      drawCloud(g, i * tile - drift + rand() * tile * 0.4, top * (0.08 + rand() * 0.24), top * (0.09 + rand() * 0.06), 0.8);
+    }
+
+    // Sea.
+    const sea = g.createLinearGradient(0, horizon, 0, top + 4);
+    sea.addColorStop(0, "#47d2dc");
+    sea.addColorStop(1, "#1788b8");
+    g.fillStyle = sea;
+    g.fillRect(0, horizon, w, top + 6 - horizon);
+    ridge(g, w, horizon + 1, top * 0.1, 260, cam * 0.04, 1.1, "rgba(60,140,150,0.75)");
+
+    // Sun glitter on the water.
+    for (let k = 0; k < 7; k += 1) {
+      const gy = horizon + 3 + k * ((top - horizon) / 8);
+      const gw = (28 + k * 20) * (0.7 + 0.3 * Math.sin(Math.max(0, t) / 500 + k));
+      g.fillStyle = `rgba(255,244,200,${0.7 - k * 0.07})`;
+      g.fillRect(sunX - gw / 2, gy, gw, 2);
+    }
+
+    // Slow sailboats and wave dashes.
+    const boatTile = 760;
+    const boatShift = cam * 0.03 + (Math.max(0, t) / 1000) * 5;
+    const firstBoat = Math.floor(boatShift / boatTile) - 1;
+    for (let i = firstBoat; i < firstBoat + Math.ceil(w / boatTile) + 2; i += 1) {
+      const rand = mulberry32(hashString(`boat:${i}`));
+      if (rand() < 0.35) continue;
+      drawSailboat(g, i * boatTile - boatShift + rand() * boatTile * 0.6, horizon + (top - horizon) * (0.28 + rand() * 0.2), top * 0.13);
+    }
+    g.strokeStyle = "rgba(255,255,255,0.35)";
+    g.lineWidth = 1.3;
+    const dash = 90;
+    const dashShift = cam * 0.08;
+    const firstDash = Math.floor(dashShift / dash) - 1;
+    for (let i = firstDash; i < firstDash + Math.ceil(w / dash) + 3; i += 1) {
+      const rand = mulberry32(hashString(`swell:${i}`));
+      const sy = horizon + 5 + rand() * (top - horizon - 8);
+      const sx = i * dash - dashShift + rand() * dash;
+      g.beginPath();
+      g.moveTo(sx, sy);
+      g.quadraticCurveTo(sx + 8, sy - 2, sx + 16 + rand() * 12, sy);
+      g.stroke();
+    }
+
+    // Dune bank behind the fence.
+    const back = g.createLinearGradient(0, top, 0, top + L.boardH + 10);
+    back.addColorStop(0, "#f2d79a");
+    back.addColorStop(1, "#cfa45d");
+    g.fillStyle = back;
+    g.fillRect(0, top + 3, w, L.boardH + 8);
+  }
+
+  function drawShell(g, x, y, r, rand) {
+    g.save();
+    g.translate(x, y);
+    g.rotate((rand() - 0.5) * 1.2);
+    g.fillStyle = "rgba(120,80,30,0.22)";
+    g.beginPath();
+    g.ellipse(2, 3, r, r * 0.4, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = rand() < 0.5 ? "#ffd0c0" : "#fff0d4";
+    g.beginPath();
+    g.moveTo(0, r * 0.4);
+    g.arc(0, r * 0.4, r, Math.PI * 1.12, Math.PI * 1.88);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = "rgba(190,110,90,0.55)";
+    g.lineWidth = 0.9;
+    for (let k = -2; k <= 2; k += 1) {
+      g.beginPath();
+      g.moveTo(0, r * 0.4);
+      g.lineTo(Math.sin(k * 0.34) * r, r * 0.4 - Math.cos(k * 0.34) * r);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  function drawStarfish(g, x, y, r, rand) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(rand() * Math.PI);
+    g.fillStyle = "rgba(120,80,30,0.2)";
+    g.beginPath();
+    g.ellipse(2, 3, r, r * 0.5, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = rand() < 0.5 ? "#ff8e5c" : "#ff6f7d";
+    g.beginPath();
+    for (let k = 0; k < 10; k += 1) {
+      const radius = k % 2 === 0 ? r : r * 0.42;
+      const a = -Math.PI / 2 + (k * Math.PI) / 5;
+      g.lineTo(Math.cos(a) * radius, Math.sin(a) * radius * 0.8);
+    }
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(255,240,210,0.7)";
+    for (let k = 0; k < 5; k += 1) {
+      const a = -Math.PI / 2 + (k * Math.PI * 2) / 5;
+      g.beginPath();
+      g.arc(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.36, r * 0.07, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+  }
+
+  const BLOOMS = ["#ff6b8b", "#ffb347", "#b388ff", "#ff5252", "#ffd84a", "#ff8fd0"];
+
+  function drawDaisy(g, x, y, r, petal) {
+    g.fillStyle = petal;
+    for (let k = 0; k < 8; k += 1) {
+      const a = (k * Math.PI) / 4;
+      g.beginPath();
+      g.ellipse(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.42, r * 0.2, a, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = "#ffcf2e";
+    g.beginPath();
+    g.arc(x, y, r * 0.32, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  function drawTulip(g, x, y, r, color) {
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(x - r * 0.7, y - r * 0.2);
+    g.quadraticCurveTo(x - r * 0.8, y + r * 0.9, x, y + r * 0.95);
+    g.quadraticCurveTo(x + r * 0.8, y + r * 0.9, x + r * 0.7, y - r * 0.2);
+    g.lineTo(x + r * 0.35, y - r * 0.6);
+    g.lineTo(x, y - r * 0.2);
+    g.lineTo(x - r * 0.35, y - r * 0.6);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,0.28)";
+    g.beginPath();
+    g.ellipse(x - r * 0.25, y + r * 0.3, r * 0.14, r * 0.38, 0.2, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  function drawBloom(g, x, base, size, rand) {
+    g.fillStyle = "rgba(10,70,30,0.22)";
+    g.beginPath();
+    g.ellipse(x, base, size * 0.34, size * 0.05, 0, 0, Math.PI * 2);
+    g.fill();
+    g.lineCap = "round";
+    const stems = 3 + Math.floor(rand() * 2);
+    for (let j = 0; j < stems; j += 1) {
+      const sx = x + (j - (stems - 1) / 2) * size * 0.18;
+      const top = base - size * (0.35 + rand() * 0.3);
+      const lean = (rand() - 0.5) * size * 0.1;
+      g.strokeStyle = "#2f8f3f";
+      g.lineWidth = Math.max(1.6, size * 0.03);
+      g.beginPath();
+      g.moveTo(sx, base);
+      g.quadraticCurveTo(sx + lean * 0.3, (base + top) / 2, sx + lean, top);
+      g.stroke();
+      g.fillStyle = "#3da84e";
+      g.beginPath();
+      g.ellipse(sx + (j % 2 ? 5 : -5), base - size * 0.1, size * 0.1, size * 0.035, j % 2 ? -0.6 : 0.6, 0, Math.PI * 2);
+      g.fill();
+      const color = BLOOMS[Math.floor(rand() * BLOOMS.length)];
+      if (rand() < 0.5) drawDaisy(g, sx + lean, top, size * 0.11, rand() < 0.5 ? "#ffffff" : color);
+      else drawTulip(g, sx + lean, top, size * 0.1, color);
+    }
+    g.lineCap = "butt";
+  }
+
+  function hedge(g, w, base, h, cell, offset, key, color, light, blooms) {
+    g.fillStyle = color;
+    g.fillRect(0, base - h * 0.4, w, h * 0.4 + 8);
+    const first = Math.floor(offset / cell) - 1;
+    for (let i = first; i < first + Math.ceil(w / cell) + 3; i += 1) {
+      const rand = mulberry32(hashString(`${key}:${i}`));
+      const cx = i * cell - offset + cell / 2;
+      const r = h * (0.46 + rand() * 0.12);
+      const cy = base - h + r;
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = light;
+      g.beginPath();
+      g.arc(cx - r * 0.25, cy - r * 0.3, r * 0.55, 0, Math.PI * 2);
+      g.fill();
+      if (blooms) {
+        for (let k = 0; k < 3; k += 1) {
+          g.fillStyle = BLOOMS[Math.floor(rand() * BLOOMS.length)];
+          g.beginPath();
+          g.arc(cx + (rand() - 0.5) * r * 1.3, cy + (rand() - 0.2) * r * 0.9, 2.2, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+  }
+
+  function drawGardenBackdrop(g, w, L, cam, t) {
+    const top = L.skyH;
+    const sky = g.createLinearGradient(0, 0, 0, top + 4);
+    sky.addColorStop(0, "#68c0f0");
+    sky.addColorStop(0.6, "#b9e4f7");
+    sky.addColorStop(1, "#f6fbe8");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, top + 6);
+
+    const sun = g.createRadialGradient(w * 0.16, top * 0.3, 0, w * 0.16, top * 0.3, top * 0.7);
+    sun.addColorStop(0, "rgba(255,250,214,0.95)");
+    sun.addColorStop(1, "rgba(255,250,214,0)");
+    g.fillStyle = sun;
+    g.fillRect(0, 0, w, top + 6);
+
+    const tile = 300;
+    const drift = cam * 0.05 + (Math.max(0, t) / 1000) * 5;
+    const firstCloud = Math.floor(drift / tile) - 1;
+    for (let i = firstCloud; i < firstCloud + Math.ceil(w / tile) + 3; i += 1) {
+      const rand = mulberry32(hashString(`gcloud:${i}`));
+      drawCloud(g, i * tile - drift + rand() * tile * 0.4, top * (0.1 + rand() * 0.3), top * (0.1 + rand() * 0.06), 0.85);
+    }
+
+    ridge(g, w, top + 4, top * 0.4, 230, cam * 0.07, 0.5, "rgba(128,196,150,0.8)");
+    hedge(g, w, top + 4, top * 0.62, top * 0.5, cam * 0.14, "hedgeFar", "#6bb65c", "#86cb70", false);
+    hedge(g, w, top + 4, top * 0.46, top * 0.4, cam * 0.26 + 40, "hedgeNear", "#3f9a45", "#58b45a", true);
+
+    const back = g.createLinearGradient(0, top, 0, top + L.boardH + 10);
+    back.addColorStop(0, "#368c40");
+    back.addColorStop(1, "#236b35");
+    g.fillStyle = back;
+    g.fillRect(0, top + 3, w, L.boardH + 8);
+  }
+
+  function drawButterfly(g, x, y, s, flap, color) {
+    g.save();
+    g.translate(x, y);
+    g.fillStyle = color;
+    for (const side of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(side * s * 0.55 * flap, -s * 0.2, s * 0.55 * flap, s * 0.5, side * 0.4, 0, Math.PI * 2);
+      g.ellipse(side * s * 0.4 * flap, s * 0.35, s * 0.34 * flap, s * 0.3, side * -0.3, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = "#3a2a3a";
+    g.fillRect(-s * 0.06, -s * 0.5, s * 0.12, s * 1.0);
+    g.restore();
+  }
+
+  function drawLadybug(g, x, y, r) {
+    g.fillStyle = "rgba(0,50,20,0.25)";
+    g.beginPath();
+    g.ellipse(x + 1, y + 2, r, r * 0.7, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#e5322d";
+    g.beginPath();
+    g.ellipse(x, y, r, r * 0.8, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#1c1c1c";
+    g.beginPath();
+    g.arc(x + r * 0.85, y, r * 0.42, 0, Math.PI * 2);
+    g.fill();
+    g.fillRect(x - r * 0.05, y - r * 0.8, r * 0.1, r * 1.6);
+    for (const [ox, oy] of [[-0.45, -0.3], [-0.4, 0.35], [0.25, -0.3], [0.25, 0.3]]) {
+      g.beginPath();
+      g.arc(x + ox * r, y + oy * r, r * 0.16, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  function drawClover(g, x, y, r) {
+    g.fillStyle = "rgba(10,70,36,0.2)";
+    g.beginPath();
+    g.ellipse(x + 1, y + 2, r * 1.5, r * 0.8, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#2f8f4a";
+    for (const [ox, oy] of [[-0.6, -0.1], [0.6, -0.1], [0, -0.7], [0, 0.55]]) {
+      g.beginPath();
+      g.arc(x + ox * r, y + oy * r * 0.8, r * 0.58, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = "rgba(190,255,200,0.4)";
+    g.beginPath();
+    g.arc(x - r * 0.3, y - r * 0.3, r * 0.2, 0, Math.PI * 2);
+    g.fill();
+  }
+
   function drawSky(g, w, L, cam, t) {
-    if (habitat.meadow || habitat.marsh) {
+    if (habitat.meadow || habitat.marsh || habitat.stream || habitat.beach || habitat.garden) {
       if (habitat.marsh) drawMarshBackdrop(g, w, L, cam, t);
+      else if (habitat.stream) drawStreamBackdrop(g, w, L, cam, t);
+      else if (habitat.beach) drawBeachBackdrop(g, w, L, cam, t);
+      else if (habitat.garden) drawGardenBackdrop(g, w, L, cam, t);
       else drawMeadowBackdrop(g, w, L, cam, t);
-      const tile = habitat.marsh ? 110 : 130;
+      const tile = habitat.marsh ? 110 : habitat.stream ? 90 : habitat.beach ? 150 : habitat.garden ? 120 : 130;
       const offset = cam * 0.45;
       const first = Math.floor(offset / tile) - 1;
       for (let i = first; i < first + Math.ceil(w / tile) + 3; i += 1) {
@@ -445,32 +854,99 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         g.stroke();
       }
     } else if (kind === "pine") {
-      g.fillStyle = habitat.mid;
-      for (let j = 0; j < 3; j += 1) {
-        const w2 = size * (0.38 - j * 0.09);
-        const y = base - size * (0.2 + j * 0.26);
+      const deep = rand() < 0.5 ? "#1b5f48" : "#17543f";
+      const light = rand() < 0.5 ? "#2f9266" : "#2a8760";
+      g.fillStyle = "rgba(4,40,34,0.25)";
+      g.beginPath();
+      g.ellipse(x + size * 0.04, base, size * 0.3, size * 0.05, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#6b4a30";
+      g.fillRect(x - size * 0.035, base - size * 0.16, size * 0.07, size * 0.16);
+      const tiers = 4;
+      for (let j = 0; j < tiers; j += 1) {
+        const w2 = size * (0.36 - j * 0.07);
+        const y = base - size * (0.12 + j * 0.22);
+        const apex = y - size * 0.34;
+        g.fillStyle = deep;
         g.beginPath();
         g.moveTo(x - w2, y);
-        g.lineTo(x, y - size * 0.36);
+        g.lineTo(x, apex);
         g.lineTo(x + w2, y);
         g.closePath();
         g.fill();
-      }
-    } else if (kind === "palm") {
-      g.strokeStyle = "#7a5230";
-      g.lineWidth = Math.max(2, size * 0.06);
-      g.beginPath();
-      g.moveTo(x, base);
-      g.quadraticCurveTo(x + size * 0.15, base - size * 0.5, x + size * 0.05, base - size * 0.95);
-      g.stroke();
-      g.fillStyle = habitat.mid;
-      for (let j = 0; j < 5; j += 1) {
-        const a = -Math.PI / 2 + (j - 2) * 0.6;
+        g.fillStyle = light;
         g.beginPath();
-        g.ellipse(x + size * 0.05 + Math.cos(a) * size * 0.22, base - size * 0.95 + Math.sin(a) * size * 0.12, size * 0.26, size * 0.06, a, 0, Math.PI * 2);
+        g.moveTo(x - w2, y);
+        g.lineTo(x, apex);
+        g.lineTo(x - w2 * 0.05, y - size * 0.02);
+        g.closePath();
         g.fill();
       }
+      g.fillStyle = "rgba(255,255,255,0.85)";
+      g.beginPath();
+      g.moveTo(x, base - size * (0.12 + (tiers - 1) * 0.22) - size * 0.34);
+      g.lineTo(x + size * 0.05, base - size * (0.12 + (tiers - 1) * 0.22) - size * 0.2);
+      g.lineTo(x - size * 0.05, base - size * (0.12 + (tiers - 1) * 0.22) - size * 0.2);
+      g.closePath();
+      g.fill();
+    } else if (kind === "palm") {
+      const dir = rand() < 0.5 ? -1 : 1;
+      const cx = x - dir * size * 0.05;
+      const cy = base - size * 0.5;
+      const topX = x + dir * size * 0.16;
+      const topY = base - size * 0.95;
+      g.fillStyle = "rgba(120,80,30,0.25)";
+      g.beginPath();
+      g.ellipse(x + dir * size * 0.08, base, size * 0.3, size * 0.045, 0, 0, Math.PI * 2);
+      g.fill();
+      g.lineCap = "round";
+      g.strokeStyle = "#8c5c36";
+      g.lineWidth = Math.max(3, size * 0.075);
+      g.beginPath();
+      g.moveTo(x, base);
+      g.quadraticCurveTo(cx, cy, topX, topY);
+      g.stroke();
+      g.strokeStyle = "rgba(70,36,14,0.4)";
+      g.lineWidth = 1.3;
+      for (let k = 1; k <= 7; k += 1) {
+        const u = k / 8;
+        const bx = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * cx + u * u * topX;
+        const by = (1 - u) * (1 - u) * base + 2 * (1 - u) * u * cy + u * u * topY;
+        const half = Math.max(1.6, size * 0.036);
+        g.beginPath();
+        g.moveTo(bx - half, by + 1);
+        g.lineTo(bx + half, by - 1);
+        g.stroke();
+      }
+      const fronds = 8;
+      for (let j = 0; j < fronds; j += 1) {
+        const a = Math.PI * (1.06 + (j / (fronds - 1)) * 0.88);
+        const len = size * (0.4 + (j % 2) * 0.06);
+        const ex = topX + Math.cos(a) * len;
+        const ey = topY + Math.sin(a) * len * 0.45 + len * 0.28;
+        const mx = topX + Math.cos(a) * len * 0.55;
+        const my = topY + Math.sin(a) * len * 0.75 - len * 0.1;
+        const spread = len * 0.12;
+        g.fillStyle = j % 2 ? "#2f9a5a" : "#238048";
+        g.beginPath();
+        g.moveTo(topX, topY);
+        g.quadraticCurveTo(mx, my - spread, ex, ey);
+        g.quadraticCurveTo(mx, my + spread, topX, topY);
+        g.fill();
+      }
+      g.fillStyle = "#5a3418";
+      for (const [ox, oy] of [[-0.03, 0.03], [0.03, 0.035], [0, 0.07]]) {
+        g.beginPath();
+        g.arc(topX + ox * size, topY + oy * size, size * 0.032, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.lineCap = "butt";
     } else if (kind === "mushroom") {
+      if (habitat.garden && rand() < 0.55) {
+        drawBloom(g, x, base, size, rand);
+        g.restore();
+        return;
+      }
       g.fillStyle = "#3f7a2e";
       g.beginPath();
       g.ellipse(x + size * 0.1, base, size * 0.5, size * 0.16, 0, Math.PI, 0);
@@ -636,6 +1112,192 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       g.fillRect(0, L.skyH + L.boardH + 4, w, L.fieldTop + 30 - (L.skyH + L.boardH + 4));
     }
 
+    if (habitat.garden) {
+      const bank = L.skyH + L.boardH + 4;
+      const bands = count <= 12 ? count : Math.max(6, Math.round(L.fieldH / 44));
+      const bandH = L.fieldH / bands;
+      for (let b = 0; b < bands; b += 1) {
+        g.fillStyle = b % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(8,76,40,0.09)";
+        g.fillRect(0, L.fieldTop + b * bandH, w, bandH + 0.5);
+      }
+      const shade = g.createLinearGradient(0, bank, 0, L.fieldTop + 30);
+      shade.addColorStop(0, "rgba(8,70,34,0.32)");
+      shade.addColorStop(1, "rgba(8,70,34,0)");
+      g.fillStyle = shade;
+      g.fillRect(0, bank, w, L.fieldTop + 30 - bank);
+      // Clover, daisies, dandelions, and ladybugs in the lawn.
+      const lawnCell = 240;
+      const lawnCol = Math.floor(cam / lawnCell) - 1;
+      const lawnRows = Math.max(2, Math.round(L.fieldH / 85));
+      for (let c = lawnCol; c < lawnCol + Math.ceil(w / lawnCell) + 2; c += 1) {
+        for (let r = 0; r < lawnRows; r += 1) {
+          const rand = mulberry32(hashString(`lawn:${c}:${r}`));
+          const pick = rand();
+          if (pick < 0.3) continue;
+          const lx = c * lawnCell - cam + rand() * lawnCell;
+          const ly = L.fieldTop + (r + 0.15 + rand() * 0.7) * (L.fieldH / lawnRows);
+          if (pick < 0.55) drawClover(g, lx, ly, 6 + rand() * 4);
+          else if (pick < 0.8) drawDaisy(g, lx, ly, 6 + rand() * 3, "#ffffff");
+          else if (pick < 0.92) {
+            g.fillStyle = "#ffd23a";
+            g.beginPath();
+            g.arc(lx, ly, 4 + rand() * 2, 0, Math.PI * 2);
+            g.fill();
+            g.fillStyle = "rgba(255,255,255,0.45)";
+            g.beginPath();
+            g.arc(lx - 1, ly - 1, 1.6, 0, Math.PI * 2);
+            g.fill();
+          } else drawLadybug(g, lx, ly, 4.5);
+        }
+      }
+      // Petals drifting on the breeze, and a few butterflies.
+      const wind = (Math.max(0, t) / 1000) * 30;
+      const petalCell = 280;
+      const petalCol = Math.floor((cam + wind) / petalCell) - 1;
+      for (let c = petalCol; c < petalCol + Math.ceil(w / petalCell) + 2; c += 1) {
+        for (let k = 0; k < 2; k += 1) {
+          const rand = mulberry32(hashString(`petal:${c}:${k}`));
+          const px = c * petalCell + rand() * petalCell - cam - wind;
+          const fall = (rand() * L.fieldH + (Math.max(0, t) / 1000) * (14 + rand() * 12)) % L.fieldH;
+          const py = L.fieldTop + fall;
+          g.fillStyle = k ? "rgba(255,190,214,0.85)" : "rgba(255,255,255,0.8)";
+          g.beginPath();
+          g.ellipse(px, py, 4.5, 2.4, Math.sin(Math.max(0, t) / 400 + c + k) * 1.2, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+      const flutterCell = 520;
+      const flutterCol = Math.floor(cam / flutterCell) - 1;
+      for (let c = flutterCol; c < flutterCol + Math.ceil(w / flutterCell) + 2; c += 1) {
+        const rand = mulberry32(hashString(`flutter:${c}`));
+        if (rand() < 0.4) continue;
+        const phase = rand() * 6.28;
+        const bx = c * flutterCell - cam + rand() * flutterCell + Math.sin(Math.max(0, t) / 800 + phase) * 30;
+        const by = L.fieldTop + rand() * L.fieldH * 0.85 + Math.cos(Math.max(0, t) / 520 + phase) * 14;
+        const flap = 0.35 + 0.65 * Math.abs(Math.sin(Math.max(0, t) / 110 + phase));
+        drawButterfly(g, bx, by, 9 + rand() * 4, flap, BLOOMS[Math.floor(rand() * BLOOMS.length)]);
+      }
+    }
+
+    if (habitat.beach) {
+      const bank = L.skyH + L.boardH + 4;
+      const bands = count <= 12 ? count : Math.max(6, Math.round(L.fieldH / 44));
+      const bandH = L.fieldH / bands;
+      for (let b = 0; b < bands; b += 1) {
+        g.fillStyle = b % 2 === 0 ? "rgba(255,255,255,0.1)" : "rgba(150,100,40,0.07)";
+        g.fillRect(0, L.fieldTop + b * bandH, w, bandH + 0.5);
+      }
+      const damp = g.createLinearGradient(0, bank, 0, L.fieldTop + 34);
+      damp.addColorStop(0, "rgba(130,86,36,0.3)");
+      damp.addColorStop(1, "rgba(130,86,36,0)");
+      g.fillStyle = damp;
+      g.fillRect(0, bank, w, L.fieldTop + 34 - bank);
+      // Wind-carved sand ripples.
+      g.strokeStyle = "rgba(170,118,56,0.26)";
+      g.lineWidth = 1.4;
+      g.lineCap = "round";
+      const rippleCell = 250;
+      const rippleCol = Math.floor(cam / rippleCell) - 1;
+      const rippleRows = Math.max(3, Math.round(L.fieldH / 52));
+      for (let c = rippleCol; c < rippleCol + Math.ceil(w / rippleCell) + 2; c += 1) {
+        for (let r = 0; r < rippleRows; r += 1) {
+          const rand = mulberry32(hashString(`ripple:${c}:${r}`));
+          if (rand() < 0.3) continue;
+          const rx = c * rippleCell - cam + rand() * rippleCell;
+          const ry = L.fieldTop + (r + rand()) * (L.fieldH / rippleRows);
+          const len = 60 + rand() * 90;
+          g.beginPath();
+          g.moveTo(rx, ry);
+          for (let s = 1; s <= 6; s += 1) g.lineTo(rx + (len * s) / 6, ry + Math.sin(s * 1.3 + rand()) * 2.2);
+          g.stroke();
+        }
+      }
+      g.lineCap = "butt";
+      // Shells and starfish on the sand.
+      const treasureCell = 330;
+      const treasureCol = Math.floor(cam / treasureCell) - 1;
+      const treasureRows = Math.max(2, Math.round(L.fieldH / 110));
+      for (let c = treasureCol; c < treasureCol + Math.ceil(w / treasureCell) + 2; c += 1) {
+        for (let r = 0; r < treasureRows; r += 1) {
+          const rand = mulberry32(hashString(`treasure:${c}:${r}`));
+          const pick = rand();
+          if (pick < 0.4) continue;
+          const tx = c * treasureCell - cam + rand() * treasureCell;
+          const ty = L.fieldTop + (r + 0.2 + rand() * 0.6) * (L.fieldH / treasureRows);
+          if (pick < 0.7) drawShell(g, tx, ty, 7 + rand() * 5, rand);
+          else if (pick < 0.9) drawStarfish(g, tx, ty, 8 + rand() * 6, rand);
+          else {
+            g.fillStyle = "rgba(120,86,60,0.35)";
+            g.beginPath();
+            g.ellipse(tx, ty, 5 + rand() * 4, 3 + rand() * 2, 0, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+      }
+    }
+
+    if (habitat.stream) {
+      const bank = L.skyH + L.boardH + 4;
+      const reflect = g.createLinearGradient(0, bank, 0, L.fieldTop + L.fieldH * 0.4);
+      reflect.addColorStop(0, "rgba(235,248,255,0.4)");
+      reflect.addColorStop(1, "rgba(235,248,255,0)");
+      g.fillStyle = reflect;
+      g.fillRect(0, bank, w, L.fieldTop + L.fieldH * 0.4 - bank);
+      const bands = count <= 12 ? count : Math.max(6, Math.round(L.fieldH / 44));
+      const bandH = L.fieldH / bands;
+      for (let b = 0; b < bands; b += 1) {
+        g.fillStyle = b % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(0,40,70,0.09)";
+        g.fillRect(0, L.fieldTop + b * bandH, w, bandH + 0.5);
+      }
+      // Smooth riverbed stones seen through the water.
+      const stoneCell = 210;
+      const stoneCol = Math.floor(cam / stoneCell) - 1;
+      const stoneRows = Math.max(2, Math.round(L.fieldH / 80));
+      for (let c = stoneCol; c < stoneCol + Math.ceil(w / stoneCell) + 2; c += 1) {
+        for (let r = 0; r < stoneRows; r += 1) {
+          const rand = mulberry32(hashString(`stone:${c}:${r}`));
+          if (rand() < 0.35) continue;
+          const sx = c * stoneCell - cam + rand() * stoneCell;
+          const sy = L.fieldTop + (r + 0.15 + rand() * 0.7) * (L.fieldH / stoneRows);
+          const sw = 9 + rand() * 16;
+          g.fillStyle = "rgba(4,44,74,0.22)";
+          g.beginPath();
+          g.ellipse(sx, sy, sw, sw * 0.5, 0, 0, Math.PI * 2);
+          g.fill();
+          g.fillStyle = "rgba(210,240,255,0.16)";
+          g.beginPath();
+          g.ellipse(sx - sw * 0.2, sy - sw * 0.14, sw * 0.55, sw * 0.24, 0, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+      // Long current streaks sliding against the swimmers.
+      const flow = (Math.max(0, t) / 1000) * 70;
+      const streakCell = 150;
+      const streakCol = Math.floor((cam + flow) / streakCell) - 1;
+      const streakRows = Math.max(4, Math.round(L.fieldH / 36));
+      g.lineCap = "round";
+      g.lineWidth = 2;
+      for (let c = streakCol; c < streakCol + Math.ceil(w / streakCell) + 2; c += 1) {
+        for (let r = 0; r < streakRows; r += 1) {
+          const rand = mulberry32(hashString(`streak:${c}:${r}`));
+          if (rand() < 0.35) continue;
+          const sx = c * streakCell + rand() * streakCell - cam - flow;
+          const sy = L.fieldTop + (r + rand()) * (L.fieldH / streakRows);
+          const len = 36 + rand() * 70;
+          const fade = g.createLinearGradient(sx, 0, sx + len, 0);
+          fade.addColorStop(0, "rgba(255,255,255,0)");
+          fade.addColorStop(0.5, "rgba(255,255,255,0.5)");
+          fade.addColorStop(1, "rgba(255,255,255,0)");
+          g.strokeStyle = fade;
+          g.beginPath();
+          g.moveTo(sx, sy);
+          g.quadraticCurveTo(sx + len * 0.5, sy - 3 - rand() * 3, sx + len, sy);
+          g.stroke();
+        }
+      }
+      g.lineCap = "butt";
+    }
+
     if (habitat.marsh) {
       // Sky reflection near the bank, then slow depth bands across the water.
       const reflect = g.createLinearGradient(0, L.skyH + L.boardH + 4, 0, L.fieldTop + L.fieldH * 0.45);
@@ -720,6 +1382,23 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
           g.lineTo(x + 2, y - blade - 2);
           g.moveTo(x + 4, y);
           g.lineTo(x + 7, y - blade);
+        } else if (habitat.garden) {
+          const blade = 4 + len * 0.22;
+          g.moveTo(x, y);
+          g.lineTo(x - 2, y - blade);
+          g.moveTo(x + 2, y);
+          g.lineTo(x + 2, y - blade - 2);
+          g.moveTo(x + 4, y);
+          g.lineTo(x + 6, y - blade);
+        } else if (habitat.beach) {
+          g.rect(x, y, 1.6, 1.6);
+          g.rect(x + 7, y - 4, 1.4, 1.4);
+          g.rect(x + 13, y + 2, 1.8, 1.8);
+        } else if (habitat.stream) {
+          const bubble = 1.5 + len * 0.1;
+          g.arc(x, y, bubble, 0, Math.PI * 2);
+          g.moveTo(x + bubble * 3.2 + 3, y - bubble * 2);
+          g.arc(x + bubble * 3.2, y - bubble * 2, bubble * 0.6, 0, Math.PI * 2);
         } else if (habitat.marsh) {
           g.ellipse(x + len / 2, y, len * 0.6, len * 0.15, 0, 0, Math.PI * 2);
         } else {
