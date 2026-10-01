@@ -6,7 +6,7 @@ const BAKE = 2;
 const INK = "#1c2836";
 
 export const ANIMALS = {
-  duck: { label: "Duck", habitat: "Pond" },
+  rabbit: { label: "Rabbit", habitat: "Meadow" },
   frog: { label: "Frog", habitat: "Marsh" },
   fish: { label: "Fish", habitat: "Stream" },
   turtle: { label: "Turtle", habitat: "Beach" },
@@ -100,34 +100,267 @@ const FROG_SPOTS = {
   belly: scaleSpots(FROG_CLASSIC, 0.6, 4),
 };
 
+export const RABBIT_REST = { hind: 0, foot: 0, front: 0, tilt: 0, lift: 0, ears: 0 };
+
+const RABBIT_RUN = [
+  { hind: -0.25, foot: -0.1, front: 0.35, tilt: 0.06, lift: 0, ears: -0.15 },
+  { hind: 0.35, foot: 2.05, front: 0.1, tilt: -0.08, lift: -90, ears: -0.25 },
+  { hind: 0.45, foot: 2.3, front: -0.6, tilt: -0.1, lift: -60, ears: -0.4 },
+  { hind: 0.6, foot: 2.0, front: -0.9, tilt: 0, lift: -70, ears: -0.35 },
+  { hind: 0.15, foot: -0.25, front: -0.3, tilt: 0.1, lift: -30, ears: -0.2 },
+  { hind: -0.1, foot: 0, front: 0.2, tilt: 0.04, lift: 0, ears: -0.15 },
+];
+
 const BODIES = {
-  duck(g, color, skin) {
-    const body = (c) => ellipse(c, 52, 60, 34, 19);
-    g.beginPath();
-    g.moveTo(22, 54);
-    g.lineTo(8, 40);
-    g.lineTo(26, 62);
-    g.closePath();
-    fillStroke(g, color);
+  rabbit(g, color, skin, pose = RABBIT_REST) {
+    const S = 0.12;
+    const OX = 0;
+    const OY = 10;
+    const K = "#121212";
+    const line = 16;
+    const soft = shade(color, -0.08);
+    const far = shade(color, -0.06);
+    const pink = "#f4a3b4";
+    const center = [520, 430];
+    const hip = [380, 440];
+    const heel = [300, 625];
+    const shoulder = [645, 470];
+    const earBase = [660, 240];
+
+    const ink = (width = line) => {
+      g.lineWidth = width;
+      g.strokeStyle = K;
+      g.stroke();
+    };
+    const paint = (fill, width = line) => {
+      g.fillStyle = fill;
+      g.fill();
+      ink(width);
+    };
+    const turn = ([px, py], angle) => {
+      g.translate(px, py);
+      g.rotate(angle);
+      g.translate(-px, -py);
+    };
+
+    const foot = (fill) => {
+      g.beginPath();
+      g.moveTo(0, -28);
+      g.bezierCurveTo(60, -36, 160, -30, 205, -18);
+      g.bezierCurveTo(238, -10, 242, 22, 215, 30);
+      g.lineTo(10, 30);
+      g.bezierCurveTo(-16, 28, -22, -20, 0, -28);
+      g.closePath();
+      paint(fill);
+      g.beginPath();
+      g.moveTo(172, 4);
+      g.lineTo(184, 28);
+      g.moveTo(198, 0);
+      g.lineTo(210, 26);
+      ink(8);
+    };
+    const hindLeg = (fill, footAngle) => {
+      g.save();
+      turn(hip, pose.hind);
+      g.save();
+      g.translate(heel[0], heel[1]);
+      g.rotate(footAngle);
+      foot(fill);
+      g.restore();
+      g.beginPath();
+      g.moveTo(250, 470);
+      g.bezierCurveTo(250, 400, 330, 370, 410, 400);
+      g.bezierCurveTo(480, 425, 512, 480, 506, 540);
+      g.bezierCurveTo(500, 580, 460, 600, 400, 600);
+      g.lineTo(300, 600);
+      g.bezierCurveTo(264, 584, 250, 530, 250, 470);
+      g.closePath();
+      g.fillStyle = fill;
+      g.fill();
+      if (Math.abs(pose.hind) > 0.15) ink();
+      else {
+        g.beginPath();
+        g.moveTo(410, 400);
+        g.bezierCurveTo(480, 425, 512, 480, 506, 540);
+        g.bezierCurveTo(502, 575, 485, 598, 465, 606);
+        ink();
+      }
+      g.restore();
+    };
+    const frontLeg = (fill, pivot, dx, dy) => {
+      g.save();
+      g.translate(dx, dy);
+      turn(pivot, pose.front);
+      g.beginPath();
+      g.moveTo(598, 440);
+      g.bezierCurveTo(582, 520, 588, 580, 600, 618);
+      g.lineTo(690, 620);
+      g.bezierCurveTo(702, 580, 702, 520, 692, 440);
+      g.closePath();
+      g.fillStyle = fill;
+      g.fill();
+      g.beginPath();
+      g.moveTo(592, 480);
+      g.bezierCurveTo(582, 530, 588, 580, 600, 618);
+      g.moveTo(690, 620);
+      g.bezierCurveTo(702, 580, 702, 540, 696, 505);
+      ink();
+      g.beginPath();
+      g.moveTo(598, 606);
+      g.bezierCurveTo(592, 652, 720, 658, 728, 630);
+      g.bezierCurveTo(732, 608, 704, 600, 688, 602);
+      g.closePath();
+      paint(fill);
+      g.beginPath();
+      g.moveTo(656, 628);
+      g.lineTo(660, 648);
+      g.moveTo(686, 624);
+      g.lineTo(692, 644);
+      ink(8);
+      g.restore();
+    };
+    const tail = () => {
+      const [tx, ty] = [195, 460];
+      for (let i = 0; i < 11; i += 1) {
+        const a = (i / 11) * Math.PI * 2;
+        g.beginPath();
+        g.arc(tx + Math.cos(a) * 46, ty + Math.sin(a) * 50, 22, 0, Math.PI * 2);
+        paint(color);
+      }
+      g.beginPath();
+      g.ellipse(tx, ty, 50, 54, 0, 0, Math.PI * 2);
+      g.fillStyle = color;
+      g.fill();
+      g.beginPath();
+      g.ellipse(tx + 8, ty + 14, 28, 26, 0, 0, Math.PI * 2);
+      g.fillStyle = soft;
+      g.fill();
+    };
+    const body = (c) => {
+      c.beginPath();
+      c.moveTo(600, 330);
+      c.bezierCurveTo(520, 298, 400, 288, 330, 305);
+      c.bezierCurveTo(268, 320, 238, 382, 244, 442);
+      c.bezierCurveTo(250, 520, 290, 580, 330, 604);
+      c.lineTo(560, 604);
+      c.bezierCurveTo(605, 594, 650, 560, 705, 520);
+      c.bezierCurveTo(745, 490, 742, 458, 720, 440);
+      c.closePath();
+    };
+    const head = (c) => {
+      c.beginPath();
+      c.moveTo(600, 252);
+      c.bezierCurveTo(640, 205, 720, 190, 790, 200);
+      c.bezierCurveTo(852, 210, 892, 262, 906, 310);
+      c.bezierCurveTo(926, 346, 906, 382, 870, 396);
+      c.bezierCurveTo(830, 420, 790, 446, 740, 456);
+      c.bezierCurveTo(690, 462, 640, 450, 610, 420);
+      c.bezierCurveTo(570, 370, 570, 290, 600, 252);
+      c.closePath();
+    };
+    const earShape = (c, back) => {
+      c.beginPath();
+      if (back) {
+        c.moveTo(640, 242);
+        c.bezierCurveTo(600, 170, 540, 80, 545, 35);
+        c.bezierCurveTo(550, 5, 600, 10, 640, 60);
+        c.bezierCurveTo(690, 120, 722, 190, 716, 238);
+      } else {
+        c.moveTo(692, 246);
+        c.bezierCurveTo(640, 180, 560, 95, 480, 65);
+        c.bezierCurveTo(434, 50, 424, 96, 455, 140);
+        c.bezierCurveTo(500, 200, 560, 240, 612, 262);
+      }
+      c.closePath();
+    };
+
+    g.save();
+    g.translate(OX, OY);
+    g.scale(S, S);
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    g.translate(0, pose.lift);
+    turn(center, pose.tilt);
+
+    frontLeg(far, [shoulder[0] + 80, shoulder[1] - 10], 80, -10);
+    if (pose !== RABBIT_REST) {
+      g.save();
+      g.translate(30, -14);
+      hindLeg(far, pose.foot * 0.8 + 0.2);
+      g.restore();
+    }
+    g.save();
+    turn(earBase, pose.ears);
+    earShape(g, true);
+    paint(soft);
+    g.restore();
+    tail();
     body(g);
-    fillStroke(g, color);
-    pattern(g, skin.pattern, body, color, [18, 41, 68, 38]);
+    paint(color);
+    g.save();
     body(g);
-    g.lineWidth = 2.2;
-    g.strokeStyle = INK;
-    g.stroke();
-    ellipse(g, 48, 58, 17, 9, -0.2);
-    fillStroke(g, shade(color, -0.15), 1.8);
-    ellipse(g, 84, 34, 16, 15);
-    fillStroke(g, color);
+    g.clip();
     g.beginPath();
-    g.moveTo(97, 31);
-    g.quadraticCurveTo(116, 34, 113, 39);
-    g.quadraticCurveTo(105, 43, 97, 41);
+    g.ellipse(480, 610, 230, 70, 0, 0, Math.PI * 2);
+    g.fillStyle = soft;
+    g.fill();
+    g.restore();
+    pattern(g, skin.pattern, body, color, [250, 300, 470, 300]);
+    body(g);
+    ink();
+    hindLeg(color, pose.foot);
+    frontLeg(color, shoulder, 0, 0);
+    head(g);
+    paint(color);
+    g.save();
+    turn(earBase, pose.ears);
+    earShape(g, false);
+    paint(color);
+    g.beginPath();
+    g.moveTo(662, 236);
+    g.bezierCurveTo(612, 180, 540, 115, 486, 90);
+    g.bezierCurveTo(470, 96, 480, 130, 506, 160);
+    g.bezierCurveTo(552, 206, 602, 236, 642, 250);
     g.closePath();
-    fillStroke(g, "#f08a14", 2);
-    eye(g, 89, 30, 2.8);
-    return { hat: [84, 20, 1], eyes: [[89, 30]], neck: [80, 50] };
+    g.fillStyle = pink;
+    g.fill();
+    g.restore();
+
+    g.beginPath();
+    g.ellipse(770, 315, 58, 60, 0, 0, Math.PI * 2);
+    paint("#fff");
+    g.beginPath();
+    g.arc(796, 312, 34, 0, Math.PI * 2);
+    g.fillStyle = "#111";
+    g.fill();
+    g.beginPath();
+    g.arc(810, 293, 10, 0, Math.PI * 2);
+    g.fillStyle = "#fff";
+    g.fill();
+    g.beginPath();
+    g.ellipse(897, 335, 20, 15, 0.2, 0, Math.PI * 2);
+    paint(pink, 10);
+    g.beginPath();
+    g.moveTo(850, 402);
+    g.quadraticCurveTo(868, 406, 884, 392);
+    ink(9);
+    g.beginPath();
+    g.moveTo(845, 368);
+    g.lineTo(786, 362);
+    g.moveTo(848, 382);
+    g.lineTo(790, 390);
+    g.moveTo(850, 396);
+    g.lineTo(800, 414);
+    ink(5);
+    g.restore();
+
+    const at = (x, y) => {
+      const a = pose.tilt;
+      const rx = center[0] + (x - center[0]) * Math.cos(a) - (y - center[1]) * Math.sin(a);
+      const ry = center[1] + (x - center[0]) * Math.sin(a) + (y - center[1]) * Math.cos(a) + pose.lift;
+      return [OX + rx * S, OY + ry * S];
+    };
+    return { hat: [...at(760, 205), 0.9], eyes: [[...at(778, 315), 58 * S]], neck: at(700, 452) };
   },
   frog(g, color, skin) {
     const S = 0.112;
@@ -585,15 +818,20 @@ export function skinsFor(race) {
   };
 }
 
-export function bakeSprite(animal, skin) {
+export function bakeSprite(animal, skin, pose) {
   const canvas = document.createElement("canvas");
   canvas.width = SPRITE_W * BAKE;
   canvas.height = SPRITE_H * BAKE;
   const g = canvas.getContext("2d");
   g.scale(BAKE, BAKE);
   g.lineJoin = "round";
-  const draw = BODIES[animal] || BODIES.duck;
-  const anchors = draw(g, skin.color, skin);
+  const draw = BODIES[animal] || BODIES.rabbit;
+  const anchors = draw(g, skin.color, skin, pose);
   accessory(g, skin.accessory, anchors, skin.color);
   return canvas;
+}
+
+export function bakeFrames(animal, skin) {
+  if (animal !== "rabbit") return [bakeSprite(animal, skin)];
+  return [bakeSprite(animal, skin, RABBIT_REST), ...RABBIT_RUN.map((pose) => bakeSprite(animal, skin, pose))];
 }

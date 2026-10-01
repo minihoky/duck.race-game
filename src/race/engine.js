@@ -1,15 +1,15 @@
 import { formatClock } from "../lib/format";
-import { SPRITE_H, SPRITE_W, bakeSprite, skinsFor } from "./art";
+import { SPRITE_H, SPRITE_W, bakeFrames, skinsFor } from "./art";
 import { buildPlan, hashString, mulberry32, progressAt, speedAt, standings } from "./motion";
 
 const HABITATS = {
-  duck: {
+  rabbit: {
     sky: ["#7cc8f2", "#e3f4ff"],
-    far: "#7aa95c",
+    far: "#8cc46a",
     mid: "#4f8a3a",
-    surface: ["#2b8fd0", "#0d5f9a"],
-    mark: "rgba(255,255,255,0.32)",
-    lane: "rgba(255,255,255,0.08)",
+    surface: ["#86c95f", "#4e9a3b"],
+    mark: "rgba(40,90,30,0.35)",
+    lane: "rgba(255,255,255,0.1)",
     decor: "tree",
   },
   frog: {
@@ -71,11 +71,12 @@ function fitText(g, text, max) {
 export function createRace(race, sponsorImages = []) {
   const plan = buildPlan(race);
   const look = skinsFor(race);
-  const habitat = HABITATS[race.animal] || HABITATS.duck;
+  const animal = HABITATS[race.animal] ? race.animal : "rabbit";
+  const habitat = HABITATS[animal];
   const count = plan.tracks.length;
   const sprites = plan.tracks.map((track) => {
     const skin = look(track.lane);
-    return { skin, image: bakeSprite(race.animal, skin) };
+    return { skin, frames: bakeFrames(animal, skin) };
   });
 
   function layout(w, h) {
@@ -335,7 +336,9 @@ export function createRace(race, sponsorImages = []) {
     if (animal === "fish") return { dy: Math.sin(stride * 1.4) * L.spriteH * 0.05, rot: Math.sin(stride * 2.2) * 0.1, squash: 1 };
     if (animal === "turtle") return { dy: moving ? -Math.abs(Math.sin(stride * 1.6)) * L.spriteH * 0.04 : 0, rot: moving ? Math.sin(stride * 1.6) * 0.05 : 0, squash: 1 };
     if (animal === "seahorse") return { dy: Math.sin(stride * 0.9 + calm) * L.spriteH * 0.12, rot: Math.sin(stride * 0.9) * 0.08 - 0.05, squash: 1 };
-    return { dy: Math.sin(stride * 1.8) * L.spriteH * 0.06, rot: Math.sin(stride * 1.8) * 0.06 + (speed > 1.4 ? -0.06 : 0), squash: 1 };
+    if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0 };
+    const cycle = (((stride * 0.45) % 1) + 1) % 1;
+    return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 6) };
   }
 
   function drawRacers(g, w, L, cam, t, rows, follow) {
@@ -356,7 +359,7 @@ export function createRace(race, sponsorImages = []) {
       if (x < -spriteW * 1.5 || x > w + spriteW) continue;
       const y = laneY(L, track.lane);
       const speed = speedAt(track, t) * plan.durationMs;
-      const motion = bodyMotion(race.animal, track, row.progress, speed, t, L);
+      const motion = bodyMotion(animal, track, row.progress, speed, t, L);
       const depth = 0.86 + (track.lane / Math.max(1, count - 1)) * 0.14;
       const sw = spriteW * depth;
       const sh = L.spriteH * depth;
@@ -386,7 +389,8 @@ export function createRace(race, sponsorImages = []) {
         g.shadowColor = "#fff";
         g.shadowBlur = 14;
       }
-      g.drawImage(sprites[track.lane].image, -sw / 2, -sh * 0.62, sw, sh);
+      const frames = sprites[track.lane].frames;
+      g.drawImage(frames[motion.frame || 0] || frames[0], -sw / 2, -sh * 0.62, sw, sh);
       g.restore();
 
       if (row.done && track.place <= Math.max(3, count <= 40 ? count : 10)) {

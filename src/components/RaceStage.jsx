@@ -121,7 +121,7 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
   }
 
   const winner = engine.plan.winner;
-  const animal = ANIMALS[race.animal] || ANIMALS.duck;
+  const animal = ANIMALS[race.animal] || ANIMALS.rabbit;
   const results = race.entrants && race.entrants.length ? [...race.entrants].sort((a, b) => a.place - b.place) : [];
   const isLive = race.status === "racing" && replayAt == null && phase === "live";
 

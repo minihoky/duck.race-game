@@ -50,7 +50,11 @@ function id12() {
 
 export const RACE_ALGORITHM = "race-v2";
 export const LEAD_IN_MS = 3000;
-export const ANIMALS = ["duck", "frog", "fish", "turtle", "seahorse"];
+export const ANIMALS = ["rabbit", "frog", "fish", "turtle", "seahorse"];
+
+function animalOf(race) {
+  return ANIMALS.includes(race.animal) ? race.animal : "rabbit";
+}
 
 function seedStream(seed, label) {
   let counter = 0;
@@ -121,7 +125,7 @@ function presentRace(race) {
     names: race.entrants.map((entrant) => entrant.name),
     entrants: visible ? race.entrants.map(({ name, lane, finishMs, place }) => ({ name, lane, finishMs, place })) : [],
     sponsors: race.sponsors,
-    animal: race.animal || "duck",
+    animal: animalOf(race),
     status: race.status,
     startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
@@ -142,7 +146,7 @@ function summarize(race) {
     name: race.name,
     names: race.entrants.map((entrant) => entrant.name),
     winner: visible && winner ? winner.name : "",
-    animal: race.animal || "duck",
+    animal: animalOf(race),
     status: race.status,
     startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
@@ -534,7 +538,7 @@ export async function handlePlatform(req, res, url, ctx) {
         const sponsor = state.sponsors.find((item) => item.id === sponsorId && item.userId === user.id && item.active !== false);
         if (sponsor && !sponsors.some((item) => item.id === sponsor.id)) sponsors.push({ id: sponsor.id, name: sponsor.name });
       }
-      const animal = ANIMALS.includes(body.animal) ? body.animal : "duck";
+      const animal = ANIMALS.includes(body.animal) ? body.animal : "rabbit";
       const seed = randomBytes(32).toString("hex");
       const durationMs = durationSec * 1000;
       const createdAt = Date.now();

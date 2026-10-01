@@ -163,12 +163,14 @@ function RacePlayer({ id }) {
   );
 }
 
+const PREVIEW_COLORS = { rabbit: "#f8f9fa", frog: "#7ec41f" };
+
 function AnimalPicker({ value, onChange }) {
   const previews = useMemo(
     () =>
       Object.keys(ANIMALS).map((animal, index) => ({
         animal,
-        src: bakeSprite(animal, { color: animal === "frog" ? "#7ec41f" : PALETTE[index * 3], pattern: "none", accessory: "none" }).toDataURL(),
+        src: bakeSprite(animal, { color: PREVIEW_COLORS[animal] || PALETTE[index * 3], pattern: "none", accessory: "none" }).toDataURL(),
       })),
     []
   );
@@ -199,7 +201,7 @@ function RaceSetup() {
   const [name, setName] = useState("Official race");
   const [names, setNames] = useState("Alex\nSam\nJordan\nRiley");
   const [duration, setDuration] = useState("30");
-  const [animal, setAnimal] = useState("duck");
+  const [animal, setAnimal] = useState("rabbit");
   const [sponsors, setSponsors] = useState([]);
   const [chosen, setChosen] = useState([]);
   const [error, setError] = useState("");
