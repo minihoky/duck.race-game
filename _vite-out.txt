@@ -1,0 +1,15 @@
+
+  VITE v6.4.3  ready in 552 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+10:34:22 PM [vite] (client) page reload public/game/index.html
+10:34:22 PM [vite] (client) page reload public/game/fish.js
+10:34:22 PM [vite] (client) page reload public/game/scene.js
+10:34:22 PM [vite] (client) page reload _vite-out.txt
+10:34:22 PM [vite] (client) page reload _vite-out.txt
+10:34:23 PM [vite] (client) page reload _vite-out.txt
+10:34:23 PM [vite] (client) page reload _vite-out.txt
+10:34:23 PM [vite] (client) page reload _vite-out.txt
+10:34:23 PM [vite] (client) page reload _vite-out.txt
+10:34:24 PM [vite] (client) page reload _vite-out.txt
+10:34:24 PM [vite] (client) page reload _vite-out.txt

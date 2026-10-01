@@ -15,7 +15,7 @@ export const ANIMALS = {
 
 export const PALETTE = [
   "#ffd23a", "#ff6b6b", "#4dabf7", "#69db7c", "#f783ac", "#ffa94d", "#b197fc", "#63e6be",
-  "#f8f9fa", "#ff922b", "#3bc9db", "#e599f7", "#a9e34b", "#fab005", "#ff8787", "#748ffc",
+  "#f8f9fa", "#ff922b", "#3bc9db", "#e599f7", "#7ec41f", "#fab005", "#ff8787", "#748ffc",
 ];
 const PATTERNS = ["none", "spots", "stripes", "belly"];
 const ACCESSORIES = ["none", "cap", "crown", "tophat", "party", "sunglasses", "bow", "headband"];
@@ -78,6 +78,28 @@ function pattern(g, kind, shape, color, box) {
   g.restore();
 }
 
+const FROG_CLASSIC = {
+  back: [[445, 262, 50, 32, -0.15], [558, 228, 33, 25, -0.3], [632, 192, 19, 16], [530, 298, 23, 20], [445, 325, 18, 13], [352, 285, 16, 10], [350, 330, 52, 30, -0.2]],
+  thigh: [[270, 388, 34, 20, 0.1], [355, 428, 30, 22, 0.3], [232, 440, 13, 10], [270, 476, 10, 8], [305, 492, 8, 6]],
+  arm: [[580, 408, 18, 20], [540, 452, 13, 13], [570, 515, 15, 13]],
+};
+
+function scaleSpots(set, factor, shift = 0) {
+  const map = (list) => list.map(([x, y, rx, ry, rot = 0]) => [x + shift, y, rx * factor, ry * factor, rot]);
+  return { back: map(set.back), thigh: map(set.thigh), arm: map(set.arm) };
+}
+
+const FROG_SPOTS = {
+  none: FROG_CLASSIC,
+  spots: {
+    back: [...FROG_CLASSIC.back, [600, 260, 14, 11], [490, 230, 12, 9], [400, 290, 13, 10], [680, 240, 10, 8]],
+    thigh: [...FROG_CLASSIC.thigh, [320, 360, 12, 9], [395, 470, 12, 10]],
+    arm: FROG_CLASSIC.arm,
+  },
+  stripes: scaleSpots(FROG_CLASSIC, 1.35, -6),
+  belly: scaleSpots(FROG_CLASSIC, 0.6, 4),
+};
+
 const BODIES = {
   duck(g, color, skin) {
     const body = (c) => ellipse(c, 52, 60, 34, 19);
@@ -108,33 +130,218 @@ const BODIES = {
     return { hat: [84, 20, 1], eyes: [[89, 30]], neck: [80, 50] };
   },
   frog(g, color, skin) {
-    const body = (c) => ellipse(c, 58, 60, 36, 22);
-    ellipse(g, 30, 70, 17, 10, 0.25);
-    fillStroke(g, shade(color, -0.2));
-    body(g);
-    fillStroke(g, color);
-    pattern(g, skin.pattern, body, color, [22, 38, 72, 44]);
-    body(g);
-    g.lineWidth = 2.2;
-    g.strokeStyle = INK;
-    g.stroke();
-    ellipse(g, 82, 76, 11, 6);
-    fillStroke(g, shade(color, -0.1));
-    for (const [x, y, r] of [[68, 38, 10], [90, 40, 9]]) {
-      ellipse(g, x, y, r, r);
-      fillStroke(g, color);
-      ellipse(g, x + 1, y - 1, r * 0.62, r * 0.62);
-      g.fillStyle = "#fff";
+    const S = 0.112;
+    const OX = 3;
+    const OY = 6;
+    const line = 15;
+    const dark = shade(color, -0.42);
+    const under = shade(color, -0.14);
+    const belly = "#fbe9a0";
+    const spots = FROG_SPOTS[skin.pattern] || FROG_SPOTS.none;
+    const INK = "#121212";
+
+    g.save();
+    g.translate(OX, OY);
+    g.scale(S, S);
+    g.lineJoin = "round";
+    g.lineCap = "round";
+
+    const outline = (fill, width = line) => {
+      g.fillStyle = fill;
       g.fill();
-      eye(g, x + 2.5, y - 1, r * 0.34);
-    }
+      g.lineWidth = width;
+      g.strokeStyle = INK;
+      g.stroke();
+    };
+    const toe = (x1, y1, x2, y2, fill) => {
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.lineWidth = 34 + line * 2;
+      g.strokeStyle = INK;
+      g.stroke();
+      g.beginPath();
+      g.arc(x2, y2, 22 + line, 0, Math.PI * 2);
+      g.fillStyle = INK;
+      g.fill();
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.lineWidth = 34;
+      g.strokeStyle = fill;
+      g.stroke();
+      g.beginPath();
+      g.arc(x2, y2, 22, 0, Math.PI * 2);
+      g.fillStyle = fill;
+      g.fill();
+    };
+    const blots = (list) => {
+      g.fillStyle = dark;
+      for (const [x, y, rx, ry, rot = 0] of list) {
+        g.beginPath();
+        g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+        g.fill();
+      }
+    };
+
+    toe(700, 545, 760, 552, under);
+    toe(690, 545, 712, 570, under);
     g.beginPath();
-    g.moveTo(72, 60);
-    g.quadraticCurveTo(88, 66, 102, 54);
-    g.lineWidth = 2;
+    g.moveTo(640, 430);
+    g.bezierCurveTo(675, 470, 690, 515, 700, 548);
+    g.lineTo(730, 552);
+    g.bezierCurveTo(710, 500, 700, 460, 690, 420);
+    g.closePath();
+    outline(under);
+
+    const body = () => {
+      g.beginPath();
+      g.moveTo(245, 360);
+      g.bezierCurveTo(320, 280, 450, 225, 560, 205);
+      g.bezierCurveTo(610, 195, 640, 175, 660, 140);
+      g.bezierCurveTo(675, 60, 830, 45, 850, 140);
+      g.bezierCurveTo(875, 162, 900, 170, 922, 188);
+      g.bezierCurveTo(950, 210, 945, 245, 915, 262);
+      g.bezierCurveTo(912, 300, 880, 320, 830, 345);
+      g.bezierCurveTo(790, 365, 760, 380, 740, 410);
+      g.bezierCurveTo(700, 480, 640, 540, 520, 548);
+      g.bezierCurveTo(420, 552, 320, 520, 268, 470);
+      g.bezierCurveTo(232, 435, 225, 390, 245, 360);
+      g.closePath();
+    };
+    body();
+    outline(color);
+    g.save();
+    body();
+    g.clip();
+    g.beginPath();
+    g.moveTo(650, 280);
+    g.bezierCurveTo(760, 292, 860, 290, 930, 262);
+    g.lineTo(980, 262);
+    g.lineTo(980, 700);
+    g.lineTo(400, 700);
+    g.lineTo(400, 515);
+    g.bezierCurveTo(480, 500, 580, 485, 625, 440);
+    g.bezierCurveTo(665, 400, 660, 340, 650, 280);
+    g.closePath();
+    g.fillStyle = belly;
+    g.fill();
+    blots(spots.back);
+    g.restore();
+    body();
+    g.lineWidth = line;
     g.strokeStyle = INK;
     g.stroke();
-    return { hat: [79, 30, 0.95], eyes: [[69, 37], [91, 39]], neck: [84, 62] };
+
+    toe(330, 540, 150, 522, color);
+    toe(335, 552, 178, 572, color);
+    toe(350, 560, 232, 592, color);
+    g.beginPath();
+    g.moveTo(190, 455);
+    g.bezierCurveTo(230, 535, 330, 568, 440, 560);
+    g.bezierCurveTo(455, 545, 450, 520, 430, 512);
+    g.bezierCurveTo(340, 515, 270, 480, 240, 420);
+    g.closePath();
+    outline(under);
+
+    const thigh = () => {
+      g.beginPath();
+      g.moveTo(175, 400);
+      g.bezierCurveTo(170, 340, 260, 320, 330, 345);
+      g.bezierCurveTo(400, 370, 445, 430, 440, 495);
+      g.bezierCurveTo(435, 535, 380, 540, 330, 515);
+      g.bezierCurveTo(260, 480, 180, 460, 175, 400);
+      g.closePath();
+    };
+    thigh();
+    outline(color);
+    g.save();
+    thigh();
+    g.clip();
+    g.beginPath();
+    g.ellipse(300, 480, 170, 60, 0.35, 0, Math.PI * 2);
+    g.fillStyle = under;
+    g.fill();
+    blots(spots.thigh);
+    g.restore();
+    thigh();
+    g.lineWidth = line;
+    g.strokeStyle = INK;
+    g.stroke();
+
+    toe(605, 565, 585, 598, color);
+    toe(612, 568, 695, 594, color);
+    toe(618, 560, 770, 552, color);
+    const armLeft = (path) => {
+      path.moveTo(590, 330);
+      path.bezierCurveTo(530, 370, 495, 425, 515, 480);
+      path.bezierCurveTo(532, 520, 565, 548, 590, 572);
+    };
+    const armRight = (path) => {
+      path.moveTo(655, 566);
+      path.bezierCurveTo(625, 530, 598, 490, 598, 445);
+      path.bezierCurveTo(598, 405, 615, 378, 640, 355);
+    };
+    const arm = () => {
+      g.beginPath();
+      armLeft(g);
+      g.lineTo(655, 566);
+      g.bezierCurveTo(625, 530, 598, 490, 598, 445);
+      g.bezierCurveTo(598, 405, 615, 378, 640, 355);
+      g.closePath();
+    };
+    arm();
+    g.fillStyle = color;
+    g.fill();
+    g.save();
+    arm();
+    g.clip();
+    blots(spots.arm);
+    g.restore();
+    g.lineWidth = line;
+    g.strokeStyle = INK;
+    g.beginPath();
+    armLeft(g);
+    g.lineTo(655, 566);
+    g.stroke();
+    g.beginPath();
+    armRight(g);
+    g.stroke();
+
+    g.beginPath();
+    g.arc(765, 172, 64, 0, Math.PI * 2);
+    outline("#fff");
+    g.beginPath();
+    g.arc(792, 170, 38, 0, Math.PI * 2);
+    g.fillStyle = "#111";
+    g.fill();
+    g.beginPath();
+    g.arc(805, 153, 13, 0, Math.PI * 2);
+    g.fillStyle = "#fff";
+    g.fill();
+
+    g.beginPath();
+    g.ellipse(906, 207, 9, 6, 0.4, 0, Math.PI * 2);
+    g.fillStyle = INK;
+    g.fill();
+
+    g.beginPath();
+    g.moveTo(808, 284);
+    g.bezierCurveTo(840, 284, 880, 280, 906, 268);
+    g.bezierCurveTo(908, 292, 885, 306, 858, 306);
+    g.bezierCurveTo(830, 305, 812, 296, 808, 284);
+    g.closePath();
+    outline("#e8472d", 10);
+    g.beginPath();
+    g.moveTo(688, 270);
+    g.bezierCurveTo(740, 285, 840, 290, 912, 262);
+    g.lineWidth = line;
+    g.strokeStyle = INK;
+    g.stroke();
+
+    g.restore();
+    const at = (x, y) => [OX + x * S, OY + y * S];
+    return { hat: [...at(765, 104), 0.85], eyes: [[...at(772, 172), 64 * S]], neck: at(840, 330) };
   },
   fish(g, color, skin) {
     const body = (c) => ellipse(c, 62, 48, 36, 21);
@@ -344,9 +551,9 @@ function accessory(g, kind, anchors, color) {
     g.stroke();
   } else if (kind === "sunglasses") {
     g.fillStyle = "#111";
-    for (const [ex, ey] of anchors.eyes) {
+    for (const [ex, ey, er = 5] of anchors.eyes) {
       g.beginPath();
-      g.ellipse(ex, ey, 6, 4.5, 0, 0, Math.PI * 2);
+      g.ellipse(ex, ey, er * 1.2, er * 0.9, 0, 0, Math.PI * 2);
       g.fill();
     }
     const [first] = anchors.eyes;

@@ -168,7 +168,7 @@ function AnimalPicker({ value, onChange }) {
     () =>
       Object.keys(ANIMALS).map((animal, index) => ({
         animal,
-        src: bakeSprite(animal, { color: PALETTE[index * 3], pattern: "none", accessory: "none" }).toDataURL(),
+        src: bakeSprite(animal, { color: animal === "frog" ? "#7ec41f" : PALETTE[index * 3], pattern: "none", accessory: "none" }).toDataURL(),
       })),
     []
   );
