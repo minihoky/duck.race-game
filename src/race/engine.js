@@ -4,13 +4,14 @@ import { buildPlan, hashString, mulberry32, progressAt, speedAt, standings } fro
 
 const HABITATS = {
   rabbit: {
-    sky: ["#7cc8f2", "#e3f4ff"],
+    sky: ["#4aa8ee", "#dff3ff"],
     far: "#8cc46a",
-    mid: "#4f8a3a",
-    surface: ["#86c95f", "#4e9a3b"],
-    mark: "rgba(40,90,30,0.35)",
-    lane: "rgba(255,255,255,0.1)",
+    mid: "#3f9a3c",
+    surface: ["#8fd653", "#52ad3a"],
+    mark: "rgba(24,92,32,0.5)",
+    lane: "rgba(255,255,255,0.14)",
     decor: "tree",
+    meadow: true,
   },
   frog: {
     sky: ["#b5e8c8", "#f0fbe0"],
@@ -181,7 +182,88 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     return clamp(x, 0, L.finishX + w * 0.24 - w);
   }
 
-  function drawSky(g, w, L, cam) {
+  function drawCloud(g, x, y, size, alpha) {
+    g.save();
+    g.globalAlpha = alpha;
+    g.fillStyle = "#ffffff";
+    g.shadowColor = "rgba(60,130,200,0.25)";
+    g.shadowBlur = size * 0.25;
+    g.shadowOffsetY = size * 0.08;
+    g.beginPath();
+    g.arc(x, y, size * 0.5, 0, Math.PI * 2);
+    g.arc(x + size * 0.55, y - size * 0.22, size * 0.62, 0, Math.PI * 2);
+    g.arc(x + size * 1.15, y, size * 0.5, 0, Math.PI * 2);
+    g.arc(x + size * 1.6, y + size * 0.08, size * 0.36, 0, Math.PI * 2);
+    g.arc(x - size * 0.35, y + size * 0.1, size * 0.34, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+
+  function ridge(g, w, base, amp, wave, offset, seed, color) {
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(0, base + 6);
+    for (let x = 0; x <= w + 12; x += 12) {
+      const wx = x + offset;
+      const y = base - amp * (0.55 + 0.3 * Math.sin(wx / wave + seed) + 0.15 * Math.sin(wx / (wave * 0.37) + seed * 2.1));
+      g.lineTo(x, y);
+    }
+    g.lineTo(w + 12, base + 6);
+    g.closePath();
+    g.fill();
+  }
+
+  function drawMeadowBackdrop(g, w, L, cam, t) {
+    const top = L.skyH;
+    const sky = g.createLinearGradient(0, 0, 0, top + 4);
+    sky.addColorStop(0, "#3f9fec");
+    sky.addColorStop(0.6, "#9bd5fb");
+    sky.addColorStop(1, "#e2f4ff");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, top + 6);
+
+    const sun = g.createRadialGradient(w * 0.84, top * 0.3, 0, w * 0.84, top * 0.3, top * 0.75);
+    sun.addColorStop(0, "rgba(255,248,214,0.9)");
+    sun.addColorStop(0.35, "rgba(255,244,200,0.35)");
+    sun.addColorStop(1, "rgba(255,244,200,0)");
+    g.fillStyle = sun;
+    g.fillRect(0, 0, w, top + 6);
+
+    const tile = 290;
+    const drift = cam * 0.06 + (Math.max(0, t) / 1000) * 5;
+    const firstCloud = Math.floor(drift / tile) - 1;
+    for (let i = firstCloud; i < firstCloud + Math.ceil(w / tile) + 3; i += 1) {
+      const rand = mulberry32(hashString(`cloud:${i}`));
+      const size = top * (0.13 + rand() * 0.1);
+      drawCloud(g, i * tile - drift + rand() * tile * 0.5, top * (0.14 + rand() * 0.34), size, 0.75 + rand() * 0.2);
+    }
+
+    ridge(g, w, top + 4, top * 0.62, 190, cam * 0.07, 0.6, "rgba(104,150,214,0.85)");
+    ridge(g, w, top + 4, top * 0.46, 140, cam * 0.1 + 80, 2.4, "rgba(122,170,224,0.9)");
+    ridge(g, w, top + 4, top * 0.34, 240, cam * 0.18 + 40, 4.1, "#9fdc72");
+    ridge(g, w, top + 4, top * 0.24, 170, cam * 0.3 + 120, 1.3, "#6dc151");
+
+    // Grass that sits behind the fence.
+    const back = g.createLinearGradient(0, top, 0, top + L.boardH + 10);
+    back.addColorStop(0, "#58b447");
+    back.addColorStop(1, "#3a8f33");
+    g.fillStyle = back;
+    g.fillRect(0, top + 3, w, L.boardH + 8);
+  }
+
+  function drawSky(g, w, L, cam, t) {
+    if (habitat.meadow) {
+      drawMeadowBackdrop(g, w, L, cam, t);
+      const tile = 130;
+      const offset = cam * 0.45;
+      const first = Math.floor(offset / tile) - 1;
+      for (let i = first; i < first + Math.ceil(w / tile) + 3; i += 1) {
+        const rand = mulberry32(hashString(`decor:${i}`));
+        const x = i * tile - offset + rand() * tile * 0.6;
+        drawDecor(g, habitat.decor, x, L.skyH + 3, L.skyH * (0.3 + rand() * 0.24), rand);
+      }
+      return;
+    }
     const sky = g.createLinearGradient(0, 0, 0, L.skyH);
     sky.addColorStop(0, habitat.sky[0]);
     sky.addColorStop(1, habitat.sky[1]);
@@ -215,13 +297,30 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   function drawDecor(g, kind, x, base, size, rand) {
     g.save();
     if (kind === "tree") {
-      g.fillStyle = "#6b4a2b";
-      g.fillRect(x - size * 0.05, base - size * 0.5, size * 0.1, size * 0.5);
-      g.fillStyle = habitat.mid;
+      const tones = [["#2f8a3b", "#4fb54d"], ["#3a9a40", "#63c455"], ["#277a46", "#47aa62"]];
+      const [deep, light] = tones[Math.floor(rand() * tones.length)];
+      g.fillStyle = "rgba(10,60,20,0.22)";
       g.beginPath();
-      g.arc(x, base - size * 0.65, size * 0.32, 0, Math.PI * 2);
-      g.arc(x - size * 0.2, base - size * 0.5, size * 0.22, 0, Math.PI * 2);
-      g.arc(x + size * 0.22, base - size * 0.52, size * 0.24, 0, Math.PI * 2);
+      g.ellipse(x + size * 0.06, base, size * 0.34, size * 0.06, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#7a5230";
+      roundRect(g, x - size * 0.05, base - size * 0.5, size * 0.1, size * 0.5, size * 0.03);
+      g.fill();
+      g.fillStyle = deep;
+      g.beginPath();
+      g.arc(x, base - size * 0.7, size * 0.34, 0, Math.PI * 2);
+      g.arc(x - size * 0.22, base - size * 0.52, size * 0.24, 0, Math.PI * 2);
+      g.arc(x + size * 0.24, base - size * 0.54, size * 0.26, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = light;
+      g.beginPath();
+      g.arc(x - size * 0.06, base - size * 0.76, size * 0.24, 0, Math.PI * 2);
+      g.arc(x - size * 0.24, base - size * 0.58, size * 0.14, 0, Math.PI * 2);
+      g.arc(x + size * 0.1, base - size * 0.6, size * 0.12, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "rgba(255,255,255,0.18)";
+      g.beginPath();
+      g.arc(x - size * 0.12, base - size * 0.84, size * 0.1, 0, Math.PI * 2);
       g.fill();
     } else if (kind === "reed") {
       g.strokeStyle = habitat.mid;
@@ -416,6 +515,21 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     g.fillStyle = surface;
     g.fillRect(0, L.skyH + L.boardH + 4, w, h);
 
+    if (habitat.meadow) {
+      // Mowed stripes: lighter and darker bands that follow the lanes.
+      const bands = count <= 12 ? count : Math.max(6, Math.round(L.fieldH / 44));
+      const bandH = L.fieldH / bands;
+      for (let b = 0; b < bands; b += 1) {
+        g.fillStyle = b % 2 === 0 ? "rgba(255,255,255,0.1)" : "rgba(8,70,16,0.08)";
+        g.fillRect(0, L.fieldTop + b * bandH, w, bandH + 0.5);
+      }
+      const edge = g.createLinearGradient(0, L.skyH + L.boardH + 4, 0, L.fieldTop + 30);
+      edge.addColorStop(0, "rgba(10,70,20,0.28)");
+      edge.addColorStop(1, "rgba(10,70,20,0)");
+      g.fillStyle = edge;
+      g.fillRect(0, L.skyH + L.boardH + 4, w, L.fieldTop + 30 - (L.skyH + L.boardH + 4));
+    }
+
     if (count <= 24) {
       g.strokeStyle = habitat.lane;
       g.lineWidth = 1;
@@ -441,8 +555,18 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         const y = L.fieldTop + r * 34 + rand() * 20;
         const len = 10 + rand() * 18;
         g.beginPath();
-        g.moveTo(x, y);
-        g.quadraticCurveTo(x + len / 2, y - 3, x + len, y);
+        if (habitat.meadow) {
+          const blade = 5 + len * 0.28;
+          g.moveTo(x, y);
+          g.lineTo(x - 3, y - blade);
+          g.moveTo(x + 2, y);
+          g.lineTo(x + 2, y - blade - 2);
+          g.moveTo(x + 4, y);
+          g.lineTo(x + 7, y - blade);
+        } else {
+          g.moveTo(x, y);
+          g.quadraticCurveTo(x + len / 2, y - 3, x + len, y);
+        }
         g.stroke();
       }
     }
@@ -755,7 +879,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     const rows = standings(plan, t);
     const cam = cameraX(L, w, rows, t, follow);
     g.clearRect(0, 0, w, h);
-    drawSky(g, w, L, cam);
+    drawSky(g, w, L, cam, t);
     drawBoards(g, w, L, cam, t);
     drawField(g, w, h, L, cam, t);
     drawRacers(g, w, L, cam, t, rows, follow);
