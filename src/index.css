@@ -216,3 +216,59 @@ body {
 .arena canvas {
   filter: none;
 }
+
+/* Result card: ranked numbers and the first-place highlight */
+.result-rank {
+  display: inline-block;
+  min-width: 1.4em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px currentColor;
+}
+
+.result-champ {
+  position: relative;
+  background-image: linear-gradient(100deg, rgba(251, 191, 36, 0.1) 0%, rgba(253, 224, 71, 0.38) 45%, rgba(251, 191, 36, 0.1) 90%);
+  background-size: 220% 100%;
+  animation: champ-shine 2.6s ease-in-out infinite, champ-glow 1.8s ease-in-out infinite;
+}
+
+.result-champ .result-rank {
+  animation: champ-pop 1.8s ease-in-out infinite;
+}
+
+@keyframes champ-shine {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes champ-glow {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(252, 211, 77, 0.45), 0 0 8px rgba(251, 191, 36, 0.25);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(253, 224, 71, 0.9), 0 0 20px rgba(251, 191, 36, 0.6);
+  }
+}
+
+@keyframes champ-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-champ,
+  .result-champ .result-rank {
+    animation: none;
+  }
+}

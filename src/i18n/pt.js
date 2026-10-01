@@ -458,6 +458,9 @@ export const PT = {
   "Use numbers": "Usar números",
   "Race length": "Duração da corrida",
   "{n} seconds": "{n} segundos",
+  "Clear": "Limpar",
+  "Delete last digit": "Apagar o último dígito",
+  "Set a length between {min} and {max} seconds.": "Defina uma duração entre {min} e {max} segundos.",
   "Platform sponsors always appear on the boards. You can add up to 8 of your own.": "Os patrocinadores da plataforma sempre aparecem nas placas. Você pode adicionar até 8 seus.",
   "Save setup": "Salvar configuração",
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { cryptoAvailable, randomClientSeed } from "../lib/fairness";
+import Fireworks from "./Fireworks";
 import { useT } from "../lib/i18n";
 import { ANIMALS } from "../race/art";
 import { buildCommentary } from "../race/commentary";
@@ -10,6 +11,10 @@ import { setSoundEnabled, sfx, soundEnabled, unlockAudio } from "../race/sound";
 const SETTLE_MS = 1200;
 const FINAL_VIEW_MS = 1500;
 const CONFETTI = ["#ffd43b", "#ff6b6b", "#4dabf7", "#69db7c", "#f783ac", "#ffa94d", "#b197fc"];
+
+// Gold for the winner, then a clearly different hue for every further place.
+const RANK_COLORS = ["#fbbf24", "#22d3ee", "#fb923c", "#4ade80", "#a78bfa", "#f472b6", "#f87171", "#38bdf8", "#2dd4bf", "#c084fc"];
+const rankColor = (place) => RANK_COLORS[(Math.max(1, place) - 1) % RANK_COLORS.length];
 
 function lineupOf(race) {
   if (race.entrants && race.entrants.length) return race;
@@ -443,8 +448,9 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
         )}
 
         {phase === "done" && !dismissed && results.length > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#041422]/75 p-4">
-            <div className="flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white p-6 text-gray-900 shadow-xl">
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[#041422]/75 p-4">
+            <Fireworks />
+            <div className="relative flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white p-6 text-gray-900 shadow-xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">{t("Official result")}</p>
               <h2 className="mt-1 text-3xl font-bold">🏆 {winner.name}</h2>
               <p className="mt-1 text-xs text-gray-500">
@@ -452,9 +458,15 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
               </p>
               <ol className="mt-4 min-h-0 flex-1 space-y-1 overflow-auto text-sm">
                 {results.map((entrant) => (
-                  <li key={entrant.lane} className={`flex justify-between gap-3 rounded-lg px-2 py-1 ${entrant.place <= 3 ? "bg-amber-50 font-semibold" : ""}`}>
+                  <li
+                    key={entrant.lane}
+                    className={`flex justify-between gap-3 rounded-lg px-2 py-1 ${entrant.place <= 3 ? "bg-amber-50 font-semibold" : ""} ${entrant.place === 1 ? "result-champ" : ""}`}
+                  >
                     <span>
-                      {entrant.place}. {entrant.name}
+                      <span className="result-rank" style={{ color: rankColor(entrant.place) }}>
+                        {entrant.place}.
+                      </span>{" "}
+                      {entrant.name}
                     </span>
                   </li>
                 ))}

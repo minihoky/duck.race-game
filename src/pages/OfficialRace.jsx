@@ -7,8 +7,81 @@ import { useT } from "../lib/i18n";
 import { usePageTitle } from "../lib/usePageTitle";
 import { ANIMALS, PALETTE, bakeSprite, skinsFor } from "../race/art";
 
-const DURATIONS = [10, 15, 20, 30, 45, 60, 90, 120];
+const MIN_DURATION = 10;
+const MAX_DURATION = 120;
 const MAX_NAMES = 200;
+
+function clockText(totalSeconds) {
+  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const minutes = String(Math.floor(safe / 60)).padStart(2, "0");
+  const seconds = String(safe % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+// A numeric keypad that types the race length in seconds and shows it on a digital clock.
+function DurationPad({ value, onChange }) {
+  const { t } = useT();
+  const seconds = Number(value) || 0;
+  const invalid = seconds < MIN_DURATION || seconds > MAX_DURATION;
+
+  function press(digit) {
+    const next = Math.min(MAX_DURATION, Number(`${seconds || ""}${digit}`));
+    onChange(String(next));
+  }
+
+  function back() {
+    onChange(String(Math.floor(seconds / 10)));
+  }
+
+  function onKeyDown(event) {
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      press(event.key);
+    } else if (event.key === "Backspace") {
+      event.preventDefault();
+      back();
+    } else if (event.key === "Delete" || event.key === "Escape") {
+      event.preventDefault();
+      onChange("0");
+    }
+  }
+
+  const key = "h-11 rounded-xl bg-gray-100 text-lg font-bold transition active:scale-95";
+  return (
+    <fieldset>
+      <legend className="text-sm font-semibold">{t("Race length")}</legend>
+      <div className="mt-2 flex flex-wrap items-center gap-4" onKeyDown={onKeyDown}>
+        <div
+          className="flex min-w-[11rem] flex-col items-center rounded-2xl bg-[#05121f] px-5 py-3 shadow-inner ring-1 ring-sky-400/30"
+          role="timer"
+          aria-live="polite"
+          aria-label={t("{n} seconds", { n: seconds })}
+        >
+          <span className={`font-mono text-5xl font-bold tabular-nums tracking-widest ${invalid ? "text-red-400" : "text-emerald-300"}`} style={{ textShadow: "0 0 14px currentColor" }}>
+            {clockText(seconds)}
+          </span>
+          <span className="mt-1 text-xs text-sky-200/70">{t("{n} seconds", { n: seconds })}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2" style={{ width: "13.5rem" }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+            <button key={digit} type="button" className={key} onClick={() => press(digit)}>
+              {digit}
+            </button>
+          ))}
+          <button type="button" className={`${key} text-sm text-red-500`} onClick={() => onChange("0")} aria-label={t("Clear")}>
+            C
+          </button>
+          <button type="button" className={key} onClick={() => press(0)}>
+            0
+          </button>
+          <button type="button" className={key} onClick={back} aria-label={t("Delete last digit")}>
+            ⌫
+          </button>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
 
 function cacheKey(id) {
   return `duck-live-race:${id}`;
@@ -220,6 +293,7 @@ function RaceSetup() {
     .map((item) => item.trim())
     .filter(Boolean);
   const tooMany = list.length > MAX_NAMES;
+  const durationBad = Number(duration) < MIN_DURATION || Number(duration) > MAX_DURATION;
 
   async function save() {
     setPending(true);
@@ -323,16 +397,8 @@ function RaceSetup() {
           </button>
         </div>
         <AnimalPicker value={animal} onChange={setAnimal} />
-        <label className="block text-sm font-semibold">
-          {t("Race length")}
-          <select className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 font-normal" value={duration} onChange={(event) => setDuration(event.target.value)}>
-            {DURATIONS.map((seconds) => (
-              <option key={seconds} value={seconds}>
-                {t("{n} seconds", { n: seconds })}
-              </option>
-            ))}
-          </select>
-        </label>
+        <DurationPad value={duration} onChange={setDuration} />
+        {durationBad && <p className="text-sm text-red-600">{t("Set a length between {min} and {max} seconds.", { min: MIN_DURATION, max: MAX_DURATION })}</p>}
         {sponsors.length > 0 && (
           <fieldset>
             <legend className="text-sm font-semibold">{t("Your sponsor images")}</legend>
@@ -354,7 +420,7 @@ function RaceSetup() {
           </fieldset>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white disabled:opacity-50" disabled={pending || tooMany || list.length < 2}>
+        <button type="submit" className="rounded-xl bg-sky-500 px-5 py-2 font-semibold text-white disabled:opacity-50" disabled={pending || tooMany || list.length < 2 || durationBad}>
           {pending ? t("Saving…") : t("Save setup")}
         </button>
       </form>

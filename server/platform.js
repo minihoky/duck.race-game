@@ -14,7 +14,8 @@ import {
   webhookSecret,
 } from "./mercadopago.js";
 
-export const DURATIONS = [10, 15, 20, 30, 45, 60, 90, 120];
+export const MIN_DURATION = 10;
+export const MAX_DURATION = 120;
 export const MAX_PARTICIPANTS = 200;
 
 export const DEFAULT_PACKAGES = [
@@ -772,7 +773,9 @@ export async function handlePlatform(req, res, url, ctx) {
       const list = cleanNameList(body.names);
       if (list.error) return { status: 400, persist: changed, error: list.error };
       const durationSec = Number(body.durationSec);
-      if (!DURATIONS.includes(durationSec)) return { status: 400, persist: changed, error: "Choose a race length from the list." };
+      if (!Number.isInteger(durationSec) || durationSec < MIN_DURATION || durationSec > MAX_DURATION) {
+        return { status: 400, persist: changed, error: `Set a race length between ${MIN_DURATION} and ${MAX_DURATION} seconds.` };
+      }
       const title = String(body.name || "").trim() || "Official race";
       if (title.length > 60) return { status: 400, persist: changed, error: "The race name can be at most 60 characters." };
       const requested = Array.isArray(body.sponsorIds) ? body.sponsorIds.map(String) : [];
