@@ -1494,6 +1494,111 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 6) };
   }
 
+  // Lowest opaque row of a baked sprite, as a fraction of the sprite height measured from the lane line.
+  let footFrac = null;
+  function footLevel(image) {
+    if (footFrac != null) return footFrac;
+    footFrac = 0.3;
+    try {
+      const pad = image.pad || NO_PAD;
+      const data = image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
+      for (let row = image.height - 1; row >= 0; row -= 1) {
+        let hits = 0;
+        for (let col = 0; col < image.width; col += 1) {
+          if (data[(row * image.width + col) * 4 + 3] > 80) hits += 1;
+        }
+        if (hits >= 4) {
+          const units = ((row + 1) / image.height) * (SPRITE_H + pad.top + pad.bottom) - pad.top;
+          footFrac = -0.62 + units / SPRITE_H - 0.012;
+          break;
+        }
+      }
+    } catch {
+      footFrac = 0.3;
+    }
+    return footFrac;
+  }
+
+  const DUST_STEP = 60;
+  const DUST_LIFE = 1000;
+  const dustPower = new Map();
+
+  // How hard the turtle was pushing forward at a past moment (0 when coasting or slowing).
+  function pushAt(track, when) {
+    if (when <= 0 || when >= track.finishMs) return when > 0 ? 0 : 0;
+    const key = track.lane * 1000003 + Math.round(when / DUST_STEP);
+    if (dustPower.has(key)) return dustPower.get(key);
+    const now = speedAt(track, when) * plan.durationMs;
+    const before = speedAt(track, when - 300) * plan.durationMs;
+    const gain = now - before;
+    const power = clamp((gain - 0.08) / 0.5, 0, 1);
+    if (dustPower.size > 40000) dustPower.clear();
+    dustPower.set(key, power);
+    return power;
+  }
+
+  function drawDust(g, track, row, t, x, ground, sw, sh, cam, spriteW, viewW, L) {
+    if (count > 30) return;
+    const newest = Math.floor(t / DUST_STEP);
+    const puffs = Math.ceil(DUST_LIFE / DUST_STEP);
+    g.save();
+    for (let k = 0; k < puffs; k += 1) {
+      const index = newest - k;
+      const born = index * DUST_STEP;
+      const age = (t - born) / DUST_LIFE;
+      if (age < 0 || age >= 1) continue;
+      const power = pushAt(track, born);
+      if (power <= 0.02) continue;
+      const rand = mulberry32(hashString(`dust:${track.lane}:${index}`));
+      const bornX = L.startX + progressAt(track, born) * L.trackLen - cam - spriteW * 0.92;
+      const originX = bornX + sw * (0.16 + rand() * 0.08);
+      const ease = 1 - Math.pow(1 - age, 2);
+      const billow = sh * (0.07 + power * 0.1) * (0.6 + ease * 1.5);
+      const px = originX - sw * 0.16 * ease - rand() * sw * 0.05;
+      const py = ground - sh * 0.04 - ease * sh * (0.14 + power * 0.16) * (0.7 + rand() * 0.6);
+      if (px < -sw || px > viewW + sw) continue;
+      const fadeIn = Math.min(1, age / 0.08);
+      const alpha = power * 0.5 * Math.pow(1 - age, 1.6) * fadeIn;
+      // A ragged cloud: several flattened blobs, hugging the ground and fanning out behind the flippers.
+      const blobs = count <= 12 ? 6 : 3;
+      for (let b = 0; b < blobs; b += 1) {
+        const spread = (b / Math.max(1, blobs - 1) - 0.5) * 2;
+        const bx = px + spread * billow * 1.15 + (rand() - 0.5) * billow * 0.4;
+        const by = py + (rand() - 0.35) * billow * 0.5 + Math.abs(spread) * billow * 0.12 - (1 - Math.abs(spread)) * billow * 0.25;
+        const r = billow * (0.5 + rand() * 0.5) * (1 - Math.abs(spread) * 0.25);
+        g.save();
+        g.translate(bx, by);
+        g.scale(1.25, 0.72);
+        const puff = g.createRadialGradient(0, 0, r * 0.05, 0, 0, r);
+        puff.addColorStop(0, `rgba(226,200,156,${alpha * 0.85})`);
+        puff.addColorStop(0.55, `rgba(206,174,122,${alpha * 0.55})`);
+        puff.addColorStop(1, "rgba(188,152,100,0)");
+        g.fillStyle = puff;
+        g.beginPath();
+        g.arc(0, 0, r, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+      // A few kicked-up grains that arc away from the flippers.
+      if (age < 0.5 && power > 0.25) {
+        const grains = 2;
+        for (let n = 0; n < grains; n += 1) {
+          const gv = (0.4 + rand() * 0.9) * sh * 0.9;
+          const ga = -Math.PI * (0.62 + rand() * 0.3);
+          const gt = age * (DUST_LIFE / 1000);
+          const gx = originX + Math.cos(ga) * gv * gt;
+          const gy = ground - sh * 0.04 + Math.sin(ga) * gv * gt + sh * 1.6 * gt * gt;
+          if (gy > ground + sh * 0.04) continue;
+          g.fillStyle = `rgba(206,172,118,${power * 0.8 * (1 - age * 2)})`;
+          g.beginPath();
+          g.arc(gx, gy, Math.max(0.9, sh * 0.014), 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+    g.restore();
+  }
+
   function drawRacers(g, w, L, cam, t, rows, follow) {
     const byLane = new Map(rows.map((row, index) => [row.track.lane, { ...row, rank: index }]));
     const labelled = new Set();
@@ -1519,10 +1624,30 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const sh = L.spriteH * depth;
 
       const lift = 1 - 0.45 * (motion.air || 0);
-      g.fillStyle = `rgba(0,0,0,${0.18 * lift})`;
-      g.beginPath();
-      g.ellipse(x + sw * 0.5, y + sh * 0.36, sw * 0.34 * lift, sh * 0.09 * lift, 0, 0, Math.PI * 2);
-      g.fill();
+      if (animal === "turtle") {
+        // Contact shadow tucked right under the flippers so the turtle sits on the sand.
+        const ground = y + sh * footLevel(sprites[track.lane].frames[0]);
+        const spread = sw * 0.37;
+        const pool = g.createRadialGradient(x + sw * 0.46, ground, 0, x + sw * 0.46, ground, spread);
+        pool.addColorStop(0, "rgba(70,40,10,0.42)");
+        pool.addColorStop(0.55, "rgba(70,40,10,0.24)");
+        pool.addColorStop(1, "rgba(70,40,10,0)");
+        g.save();
+        g.translate(0, ground);
+        g.scale(1, (sh * 0.075) / spread);
+        g.translate(0, -ground);
+        g.fillStyle = pool;
+        g.beginPath();
+        g.arc(x + sw * 0.46, ground, spread, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+        if (t > 0 && row.progress < 1.01) drawDust(g, track, row, t, x, ground, sw, sh, cam, spriteW, w, L);
+      } else {
+        g.fillStyle = `rgba(0,0,0,${0.18 * lift})`;
+        g.beginPath();
+        g.ellipse(x + sw * 0.5, y + sh * 0.36, sw * 0.34 * lift, sh * 0.09 * lift, 0, 0, Math.PI * 2);
+        g.fill();
+      }
 
       if (t > 0 && !row.done && speed > 1.25) {
         g.strokeStyle = "rgba(255,255,255,0.55)";
