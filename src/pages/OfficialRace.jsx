@@ -46,23 +46,26 @@ function DurationPad({ value, onChange }) {
     }
   }
 
-  const key = "h-11 rounded-xl bg-gray-100 text-lg font-bold transition active:scale-95";
+  const key = "h-full min-h-[3.5rem] rounded-xl bg-gray-100 text-2xl font-bold transition hover:brightness-125 active:scale-95";
   return (
     <fieldset>
       <legend className="text-sm font-semibold">{t("Race length")}</legend>
-      <div className="mt-2 flex flex-wrap items-center gap-4" onKeyDown={onKeyDown}>
+      <div className="mt-2 grid gap-4 sm:grid-cols-2" onKeyDown={onKeyDown}>
         <div
-          className="flex min-w-[11rem] flex-col items-center rounded-2xl bg-[#05121f] px-5 py-3 shadow-inner ring-1 ring-sky-400/30"
+          className="flex min-h-[10rem] flex-col items-center justify-center rounded-2xl bg-[#05121f] px-4 py-6 shadow-inner ring-1 ring-sky-400/30"
           role="timer"
           aria-live="polite"
           aria-label={t("{n} seconds", { n: seconds })}
         >
-          <span className={`font-mono text-5xl font-bold tabular-nums tracking-widest ${invalid ? "text-red-400" : "text-emerald-300"}`} style={{ textShadow: "0 0 14px currentColor" }}>
+          <span
+            className={`font-mono text-7xl font-bold tabular-nums tracking-widest ${invalid ? "text-red-400" : "text-emerald-300"}`}
+            style={{ textShadow: "0 0 18px currentColor" }}
+          >
             {clockText(seconds)}
           </span>
-          <span className="mt-1 text-xs text-sky-200/70">{t("{n} seconds", { n: seconds })}</span>
+          <span className="mt-2 text-sm text-sky-200/70">{t("{n} seconds", { n: seconds })}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2" style={{ width: "13.5rem" }}>
+        <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
             <button key={digit} type="button" className={key} onClick={() => press(digit)}>
               {digit}

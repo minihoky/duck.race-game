@@ -91,6 +91,7 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
   const [replayAt, setReplayAt] = useState(null);
   const [phase, setPhase] = useState("live");
   const [dismissed, setDismissed] = useState(false);
+  const [spelling, setSpelling] = useState(false);
   const [restored, setRestored] = useState(false);
   const [eventCount, setEventCount] = useState(0);
   const [sound, setSound] = useState(soundEnabled);
@@ -449,8 +450,9 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
 
         {phase === "done" && !dismissed && results.length > 0 && (
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[#041422]/75 p-4">
-            <Fireworks />
-            <div className="relative flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white p-6 text-gray-900 shadow-xl">
+            <div
+              className={`relative flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white p-6 text-gray-900 shadow-xl transition-[opacity,filter] duration-500 ${spelling ? "opacity-20 blur-[1px]" : ""}`}
+            >
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">{t("Official result")}</p>
               <h2 className="mt-1 text-3xl font-bold">🏆 {winner.name}</h2>
               <p className="mt-1 text-xs text-gray-500">
@@ -486,6 +488,7 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
                 </Link>
               )}
             </div>
+            <Fireworks text={winner.name} onNameChange={setSpelling} />
           </div>
         )}
 
