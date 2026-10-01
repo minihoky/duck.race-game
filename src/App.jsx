@@ -16,6 +16,7 @@ import Credits from "./pages/Credits";
 import Checkout from "./pages/Checkout";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import Verify from "./pages/Verify";
 
 export default function App() {
   return (
@@ -30,6 +31,8 @@ export default function App() {
         <Route path="/race/:id" element={<OfficialRace />} />
         <Route path="/race" element={<OfficialRace />} />
         <Route path="/history" element={<History />} />
+        <Route path="/verify/:id" element={<Verify />} />
+        <Route path="/verify" element={<Verify />} />
         <Route path="/credits" element={<Credits />} />
         <Route path="/checkout/:paymentId" element={<Checkout />} />
         <Route path="/dashboard" element={<Dashboard />} />

@@ -249,6 +249,7 @@ function Footer() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-slate-500 sm:flex-row">
           <p>© 2026 Duck Race Game Dot Com. All rights reserved.</p>
           <p className="flex gap-3">
+            <Link className="hover:text-sky-300" to="/verify">Verify a result</Link>
             <Link className="hover:text-sky-300" to="/terms">Terms</Link>
             <Link className="hover:text-sky-300" to="/privacy">Privacy</Link>
             <a className="hover:text-sky-300" href={`mailto:${supportEmail}`}>Support</a>

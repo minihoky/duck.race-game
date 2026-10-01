@@ -86,9 +86,14 @@ export default function History() {
                       </p>
                       <p className="mt-1 text-xs text-gray-500">Result ID {race.id}</p>
                     </div>
-                    <Link to={`/race/${race.id}`} className="rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white">
-                      {race.status === "ready" ? "Open game" : "Play again"}
-                    </Link>
+                    <div className="flex flex-col gap-2">
+                      <Link to={`/race/${race.id}`} className="rounded-xl bg-sky-500 px-4 py-2 text-center text-sm font-semibold text-white">
+                        {race.status === "ready" ? "Open game" : "Play again"}
+                      </Link>
+                      <Link to={`/verify/${race.id}`} className="rounded-xl border border-gray-200 px-4 py-2 text-center text-sm font-semibold text-gray-700">
+                        Verify fairness
+                      </Link>
+                    </div>
                   </div>
                 </li>
               ))}

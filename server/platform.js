@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { devAdminOpen, mutate, readSession, viewUser } from "./accounts.js";
@@ -48,7 +48,7 @@ function id12() {
   return randomBytes(9).toString("base64url");
 }
 
-export const RACE_ALGORITHM = "race-v2";
+export const RACE_ALGORITHM = "race-v3";
 export const LEAD_IN_MS = 3000;
 export const ANIMALS = ["rabbit", "frog", "fish", "turtle", "snail"];
 
@@ -79,8 +79,23 @@ function uniformBelow(next, n) {
   return value % n;
 }
 
-export function buildEntrants(names, seed, durationMs) {
-  const next = seedStream(seed, `${RACE_ALGORITHM}:order`);
+export function sha256Hex(text) {
+  return createHash("sha256").update(String(text), "utf8").digest("hex");
+}
+
+export function namesDigest(names) {
+  return sha256Hex(names.join("\n"));
+}
+
+const CLIENT_SEED = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function orderLabel(race) {
+  if (race.algorithm === "race-v3") return `race-v3:order:${race.namesHash}:${race.clientSeed}`;
+  return "race-v2:order";
+}
+
+export function buildEntrants(names, seed, durationMs, label) {
+  const next = seedStream(seed, label);
   const order = names.map((_, lane) => lane);
   for (let i = order.length - 1; i > 0; i -= 1) {
     const j = uniformBelow(next, i + 1);
@@ -117,6 +132,35 @@ function raceHasRun(race) {
   return race.status === "racing" || race.status === "finished";
 }
 
+function fairnessOf(race) {
+  if (!race.seedHash) return null;
+  const visible = raceHasRun(race);
+  return {
+    algorithm: race.algorithm,
+    seedHash: race.seedHash,
+    namesHash: race.namesHash,
+    clientSeed: visible ? race.clientSeed : "",
+    serverSeed: race.status === "finished" ? race.seed : "",
+  };
+}
+
+function publicRace(race) {
+  const visible = raceHasRun(race);
+  return {
+    id: race.id,
+    name: race.name,
+    animal: animalOf(race),
+    status: race.status,
+    createdAt: race.createdAt || null,
+    startedAt: race.startedAt || null,
+    finishedAt: race.finishedAt || null,
+    names: race.entrants.map((entrant) => entrant.name),
+    places: visible ? race.entrants.map(({ lane, place }) => ({ lane, place })) : [],
+    algorithm: race.algorithm || "race-v1",
+    fairness: fairnessOf(race),
+  };
+}
+
 function presentRace(race) {
   const visible = raceHasRun(race);
   return {
@@ -133,6 +177,7 @@ function presentRace(race) {
     leadInMs: race.leadInMs || 0,
     algorithm: race.algorithm || "race-v1",
     motionSeed: visible ? motionSeed(race) : "",
+    fairness: fairnessOf(race),
     createdAt: race.createdAt || null,
     serverNow: Date.now(),
   };
@@ -434,6 +479,22 @@ export async function handlePlatform(req, res, url, ctx) {
     return;
   }
 
+  const verifyMatch = pathName.match(/^\/api\/verify\/([A-Za-z0-9_-]{8,32})$/);
+  if (req.method === "GET" && verifyMatch) {
+    if (limited(`${ip}:verify:${verifyMatch[1]}`)) {
+      send(res, 429, { error: "Too many attempts. Wait a few minutes and try again." });
+      return;
+    }
+    const result = await mutate((state) => {
+      const race = state.races.find((item) => item.id === verifyMatch[1]);
+      if (!race) return { status: 404, persist: false, error: "That result ID was not found." };
+      const changed = settle(race);
+      return { status: 200, persist: changed, race: publicRace(race) };
+    });
+    reply(res, send, result);
+    return;
+  }
+
   const user = requireUser(req, cookies);
 
   if (req.method === "GET" && pathName === "/api/account") {
@@ -549,6 +610,9 @@ export async function handlePlatform(req, res, url, ctx) {
         animal,
         algorithm: RACE_ALGORITHM,
         seed,
+        seedHash: sha256Hex(seed),
+        namesHash: namesDigest(list.names),
+        clientSeed: "",
         durationMs,
         leadInMs: LEAD_IN_MS,
         createdAt,
@@ -556,7 +620,7 @@ export async function handlePlatform(req, res, url, ctx) {
         finishedAt: 0,
         status: "ready",
         creditUsed: false,
-        entrants: buildEntrants(list.names, seed, durationMs),
+        entrants: list.names.map((name, lane) => ({ name, lane, finishMs: 0, place: 0 })),
         sponsors,
       };
       state.races.push(race);
@@ -572,7 +636,12 @@ export async function handlePlatform(req, res, url, ctx) {
       send(res, 429, { error: "Too many attempts. Wait a few minutes and try again." });
       return;
     }
-    await readBody(req);
+    const body = await readBody(req);
+    const requestedSeed = String(body?.clientSeed || "").trim();
+    if (requestedSeed && !CLIENT_SEED.test(requestedSeed)) {
+      send(res, 400, { error: "The client seed can use up to 64 letters, numbers, - or _." });
+      return;
+    }
     const result = await mutate((state) => {
       let changed = false;
       for (const race of state.races) {
@@ -595,6 +664,11 @@ export async function handlePlatform(req, res, url, ctx) {
       const now = Date.now();
       const outcome = applyRaceStart(user, race, now + (race.leadInMs || 0));
       if (outcome.error) return { status: outcome.status, persist: changed, error: outcome.error };
+      if (race.algorithm === "race-v3") {
+        race.clientSeed = requestedSeed || randomBytes(16).toString("hex");
+        const names = race.entrants.map((entrant) => entrant.name);
+        race.entrants = buildEntrants(names, race.seed, race.durationMs, orderLabel(race));
+      }
       if (outcome.charged) {
         state.ledger.push({
           id: id12(),

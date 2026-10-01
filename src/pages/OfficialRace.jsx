@@ -117,11 +117,11 @@ function RacePlayer({ id }) {
     };
   }, [id]);
 
-  async function start() {
+  async function start(clientSeed) {
     setStarting(true);
     setStartError("");
     try {
-      const data = await api(`/api/races/${id}/start`, { method: "POST", body: {} });
+      const data = await api(`/api/races/${id}/start`, { method: "POST", body: { clientSeed } });
       accept(data.race);
       if (data.user) publishAccount(data.user);
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { cryptoAvailable, randomClientSeed } from "../lib/fairness";
 import { ANIMALS } from "../race/art";
 import { createRace } from "../race/engine";
 
@@ -22,7 +23,10 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
   const [phase, setPhase] = useState("live");
   const [dismissed, setDismissed] = useState(false);
   const [restored, setRestored] = useState(false);
+  const [clientSeed, setClientSeed] = useState(() => (cryptoAvailable() ? randomClientSeed() : ""));
   const leadIn = race.leadInMs || 0;
+  const fair = race.fairness;
+  const seedOk = !clientSeed || /^[A-Za-z0-9_-]{1,64}$/.test(clientSeed);
 
   const sponsorImages = useMemo(
     () =>
@@ -135,6 +139,14 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
           <h1 className="truncate text-2xl font-bold">{race.name}</h1>
           <p className="text-xs text-gray-500">
             Result ID {race.id} · {race.names.length} racers
+            {fair && (
+              <>
+                {" · "}
+                <Link to={`/verify/${race.id}`} className="font-semibold text-sky-600">
+                  Verify
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -177,6 +189,28 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
               <p className="mt-2 text-sm text-gray-600">
                 The result is decided by the server when you start. Starting uses 1 credit. Refreshing or replaying never draws a new result.
               </p>
+              {fair && (
+                <div className="mt-3 rounded-xl bg-gray-50 p-3 text-left">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">Server seed hash (locked)</p>
+                  <p className="break-all font-mono text-[11px] text-gray-700">{fair.seedHash}</p>
+                  <label className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500" htmlFor="client-seed">
+                    Client seed
+                  </label>
+                  <input
+                    id="client-seed"
+                    className={`mt-1 w-full rounded-lg border px-2 py-1 font-mono text-xs ${seedOk ? "border-gray-200" : "border-red-400"}`}
+                    value={clientSeed}
+                    maxLength={64}
+                    onChange={(event) => setClientSeed(event.target.value.trim())}
+                  />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Mixed into the draw at start, so nobody can know the result in advance.{" "}
+                    <Link to={`/verify/${race.id}`} className="font-semibold text-sky-600" target="_blank">
+                      Public proof
+                    </Link>
+                  </p>
+                </div>
+              )}
               {credits != null && <p className="mt-3 text-sm font-semibold">Balance: {credits} credit{credits === 1 ? "" : "s"}</p>}
               {startError && (
                 <div className="mt-3 text-sm text-red-600">
@@ -189,8 +223,8 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
               <button
                 type="button"
                 className="mt-4 w-full rounded-xl bg-sky-500 py-3 font-bold text-white disabled:opacity-50"
-                onClick={onStart}
-                disabled={starting}
+                onClick={() => onStart(clientSeed)}
+                disabled={starting || !seedOk}
               >
                 {starting ? "Starting…" : "Start official race · 1 credit"}
               </button>
@@ -224,6 +258,11 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
                 </button>
               </div>
               <p className="mt-3 text-center text-xs text-gray-500">Replaying shows the same saved result and does not use a credit.</p>
+              {fair && (
+                <Link to={`/verify/${race.id}`} className="mt-2 text-center text-sm font-semibold text-emerald-600">
+                  ✓ Verify this result publicly
+                </Link>
+              )}
             </div>
           </div>
         )}
