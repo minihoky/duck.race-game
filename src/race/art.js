@@ -113,6 +113,26 @@ const TURTLE_SWIM = Array.from({ length: 8 }, (_, k) => {
   };
 });
 
+const smooth = (v) => v * v * (3 - 2 * v);
+
+export const FROG_TAKEOFF = 0.2;
+export const FROG_LANDING = 0.86;
+export const FROG_FRAMES = 12;
+const FROG_REST = { kick: 0, reach: 0 };
+
+function frogPose(c) {
+  let kick = 0;
+  if (c >= 0.08 && c < 0.26) kick = smooth((c - 0.08) / 0.18);
+  else if (c >= 0.26 && c < 0.56) kick = 1;
+  else if (c >= 0.56 && c < FROG_LANDING) kick = 1 - smooth((c - 0.56) / (FROG_LANDING - 0.56));
+  let reach = 0;
+  if (c >= 0.42 && c < 0.78) reach = smooth((c - 0.42) / 0.36);
+  else if (c >= 0.78 && c < 0.96) reach = 1 - smooth((c - 0.78) / 0.18);
+  return { kick, reach };
+}
+
+const FROG_HOP = Array.from({ length: FROG_FRAMES }, (_, i) => frogPose((i + 0.5) / FROG_FRAMES));
+
 const SNAIL_REST = { reach: 0, tail: 0, shell: 0, lift: 0, rock: 0, wave: 0, stalkNear: 0, stalkFar: 0 };
 const SNAIL_CRAWL = Array.from({ length: 8 }, (_, k) => {
   const a = (k / 8) * Math.PI * 2;
@@ -403,7 +423,7 @@ const BODIES = {
     };
     return { hat: [...at(760, 205), 0.9], eyes: [[...at(778, 315), 58 * S]], neck: at(700, 452) };
   },
-  frog(g, color, skin) {
+  frog(g, color, skin, pose = FROG_REST) {
     const S = 0.112;
     const OX = 3;
     const OY = 6;
@@ -458,6 +478,36 @@ const BODIES = {
       }
     };
 
+    const swing = (pivot, angle) => {
+      g.translate(pivot[0], pivot[1]);
+      g.rotate(angle);
+      g.translate(-pivot[0], -pivot[1]);
+    };
+    const place = (from, to, angle) => {
+      g.translate(to[0], to[1]);
+      g.rotate(angle);
+      g.translate(-from[0], -from[1]);
+    };
+    const turnPoint = (pivot, point, angle) => {
+      const dx = point[0] - pivot[0];
+      const dy = point[1] - pivot[1];
+      return [pivot[0] + dx * Math.cos(angle) - dy * Math.sin(angle), pivot[1] + dx * Math.sin(angle) + dy * Math.cos(angle)];
+    };
+    const kick = pose.kick;
+    const reach = pose.reach;
+    const hip = [410, 450];
+    const knee0 = [215, 438];
+    const ankle0 = [435, 536];
+    const thighTurn = -0.37 * kick;
+    const shinTurn = 2.43 * kick;
+    const footTurn = -0.15 * kick;
+    const knee = turnPoint(hip, knee0, thighTurn);
+    const ankle = turnPoint([0, 0], [ankle0[0] - knee0[0], ankle0[1] - knee0[1]], shinTurn);
+    ankle[0] += knee[0];
+    ankle[1] += knee[1];
+
+    g.save();
+    swing([665, 430], -0.4 * reach);
     toe(700, 545, 760, 552, under);
     toe(690, 545, 712, 570, under);
     g.beginPath();
@@ -467,6 +517,7 @@ const BODIES = {
     g.bezierCurveTo(710, 500, 700, 460, 690, 420);
     g.closePath();
     outline(under);
+    g.restore();
 
     const body = () => {
       g.beginPath();
@@ -507,9 +558,15 @@ const BODIES = {
     g.strokeStyle = INK;
     g.stroke();
 
+    g.save();
+    place(ankle0, ankle, footTurn);
+    if (kick > 0.05) toe(ankle0[0], ankle0[1], 345, 552, color);
     toe(330, 540, 150, 522, color);
     toe(335, 552, 178, 572, color);
     toe(350, 560, 232, 592, color);
+    g.restore();
+    g.save();
+    place(knee0, knee, shinTurn);
     g.beginPath();
     g.moveTo(190, 455);
     g.bezierCurveTo(230, 535, 330, 568, 440, 560);
@@ -517,7 +574,10 @@ const BODIES = {
     g.bezierCurveTo(340, 515, 270, 480, 240, 420);
     g.closePath();
     outline(under);
+    g.restore();
 
+    g.save();
+    swing(hip, thighTurn);
     const thigh = () => {
       g.beginPath();
       g.moveTo(175, 400);
@@ -542,7 +602,10 @@ const BODIES = {
     g.lineWidth = line;
     g.strokeStyle = INK;
     g.stroke();
+    g.restore();
 
+    g.save();
+    swing([615, 345], -0.45 * reach);
     toe(605, 565, 585, 598, color);
     toe(612, 568, 695, 594, color);
     toe(618, 560, 770, 552, color);
@@ -581,6 +644,7 @@ const BODIES = {
     g.beginPath();
     armRight(g);
     g.stroke();
+    g.restore();
 
     g.beginPath();
     g.arc(765, 172, 64, 0, Math.PI * 2);
@@ -1312,16 +1376,21 @@ export function skinsFor(race) {
   };
 }
 
-export function bakeSprite(animal, skin, pose) {
+export const NO_PAD = { left: 0, top: 0, right: 0, bottom: 0 };
+const PADS = { frog: { left: 64, top: 6, right: 0, bottom: 26 } };
+
+export function bakeSprite(animal, skin, pose, pad = NO_PAD) {
   const canvas = document.createElement("canvas");
-  canvas.width = SPRITE_W * BAKE;
-  canvas.height = SPRITE_H * BAKE;
+  canvas.width = (SPRITE_W + pad.left + pad.right) * BAKE;
+  canvas.height = (SPRITE_H + pad.top + pad.bottom) * BAKE;
   const g = canvas.getContext("2d");
   g.scale(BAKE, BAKE);
+  g.translate(pad.left, pad.top);
   g.lineJoin = "round";
   const draw = BODIES[animal] || BODIES.rabbit;
   const anchors = draw(g, skin.color, skin, pose);
   accessory(g, skin.accessory, anchors, skin.color);
+  canvas.pad = pad;
   return canvas;
 }
 
@@ -1330,11 +1399,13 @@ const CYCLES = {
   fish: [FISH_REST, FISH_WAG],
   turtle: [TURTLE_REST, TURTLE_SWIM],
   snail: [SNAIL_REST, SNAIL_CRAWL],
+  frog: [FROG_REST, FROG_HOP],
 };
 
 export function bakeFrames(animal, skin) {
   const cycle = CYCLES[animal];
   if (!cycle) return [bakeSprite(animal, skin)];
   const [rest, moving] = cycle;
-  return [bakeSprite(animal, skin, rest), ...moving.map((pose) => bakeSprite(animal, skin, pose))];
+  const pad = PADS[animal] || NO_PAD;
+  return [bakeSprite(animal, skin, rest, pad), ...moving.map((pose) => bakeSprite(animal, skin, pose, pad))];
 }

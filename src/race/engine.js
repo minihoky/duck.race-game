@@ -1,5 +1,5 @@
 import { formatClock } from "../lib/format";
-import { SPRITE_H, SPRITE_W, bakeFrames, skinsFor } from "./art";
+import { FROG_FRAMES, FROG_LANDING, FROG_TAKEOFF, NO_PAD, SPRITE_H, SPRITE_W, bakeFrames, skinsFor } from "./art";
 import { buildPlan, hashString, mulberry32, progressAt, speedAt, standings } from "./motion";
 
 const HABITATS = {
@@ -51,6 +51,65 @@ const HABITATS = {
 };
 
 const MEDALS = ["#ffd43b", "#ced4da", "#e8a15a"];
+const HOPS_PER_STRIDE = 0.7 / Math.PI;
+const SPLASHES = [
+  { mark: FROG_LANDING, span: 0.42, kind: "land", foot: 0.66 },
+  { mark: FROG_TAKEOFF, span: 0.28, kind: "push", foot: 0.2 },
+];
+
+function drawSplash(g, cx, cy, size, age, seed, kind) {
+  const rand = mulberry32(seed >>> 0);
+  const fade = 1 - age;
+  g.save();
+  g.lineWidth = Math.max(1, size * 0.06);
+  for (const lag of [0, 0.28]) {
+    const a = (age - lag) / (1 - lag);
+    if (a <= 0) continue;
+    const rx = size * (0.3 + a * 1.15);
+    g.strokeStyle = `rgba(225,247,255,${(1 - a) * 0.8})`;
+    g.beginPath();
+    g.ellipse(cx, cy, rx, rx * 0.27, 0, 0, Math.PI * 2);
+    g.stroke();
+  }
+  if (age < 0.6) {
+    const rise = Math.sin((age / 0.6) * Math.PI) * size * (kind === "land" ? 1.05 : 0.7);
+    g.fillStyle = `rgba(232,249,255,${0.9 * fade})`;
+    g.strokeStyle = `rgba(70,150,195,${0.7 * fade})`;
+    g.lineWidth = Math.max(1, size * 0.035);
+    const spikes = kind === "land" ? 7 : 5;
+    for (let i = 0; i < spikes; i += 1) {
+      const side = (i - (spikes - 1) / 2) / ((spikes - 1) / 2);
+      const base = cx + side * size * (0.3 + age * 0.55);
+      const height = rise * (0.6 + rand() * 0.5) * (1 - Math.abs(side) * 0.3);
+      const lean = side * size * 0.38;
+      const half = size * 0.1;
+      g.beginPath();
+      g.moveTo(base - half, cy);
+      g.quadraticCurveTo(base + lean * 0.3 - half * 0.4, cy - height * 0.6, base + lean, cy - height);
+      g.quadraticCurveTo(base + lean * 0.5 + half * 0.4, cy - height * 0.5, base + half, cy);
+      g.closePath();
+      g.fill();
+      g.stroke();
+    }
+  }
+  const drops = kind === "land" ? 12 : 7;
+  g.fillStyle = `rgba(232,249,255,${fade})`;
+  g.strokeStyle = `rgba(70,150,195,${0.85 * fade})`;
+  g.lineWidth = Math.max(0.8, size * 0.035);
+  for (let i = 0; i < drops; i += 1) {
+    const angle = -Math.PI / 2 + (rand() - 0.5) * 2.3;
+    const speed = size * (1.8 + rand() * 1.6) * (kind === "land" ? 1 : 0.75);
+    const px = cx + Math.cos(angle) * speed * age;
+    const py = cy + Math.sin(angle) * speed * age * 1.3 + speed * 1.5 * age * age;
+    if (py > cy + size * 0.05 || age < 0.06) continue;
+    const r = size * (0.05 + rand() * 0.06) * Math.min(1, age * 5) * (1 - age * 0.4);
+    g.beginPath();
+    g.ellipse(px, py, r, r * 1.25, angle + Math.PI / 2, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+  }
+  g.restore();
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -349,8 +408,20 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     const stride = (progress * L.trackLen) / Math.max(18, L.spriteH * 0.9) + track.phase;
     const moving = t > 0 && progress < 1.02;
     if (animal === "frog") {
-      const hop = moving ? Math.abs(Math.sin(stride * 0.7)) : 0;
-      return { dy: -hop * L.spriteH * 0.32, rot: moving ? -0.12 * Math.cos(stride * 0.7) : 0, squash: moving ? 1 + (1 - hop) * 0.08 : 1 };
+      if (!moving || progress > 1.01) return { dy: 0, rot: 0, squash: 1, frame: 0, air: 0, shift: 0 };
+      const c = (((stride * HOPS_PER_STRIDE) % 1) + 1) % 1;
+      const frame = 1 + Math.min(FROG_FRAMES - 1, Math.floor(c * FROG_FRAMES));
+      const settle = clamp((1 - progress) / 0.04, 0, 1);
+      const hopPx = Math.max(18, L.spriteH * 0.9) / HOPS_PER_STRIDE;
+      if (c >= FROG_TAKEOFF && c < FROG_LANDING) {
+        const u = (c - FROG_TAKEOFF) / (FROG_LANDING - FROG_TAKEOFF);
+        const air = 4 * u * (1 - u);
+        return { dy: -air * L.spriteH * 0.5, rot: -0.22 * Math.cos(Math.PI * u), squash: 1 + air * 0.04, frame, air, shift: (u - c) * hopPx * settle };
+      }
+      const ground = 1 - FROG_LANDING + FROG_TAKEOFF;
+      const u = (c >= FROG_LANDING ? c - FROG_LANDING : c + 1 - FROG_LANDING) / ground;
+      const held = c >= FROG_LANDING ? 1 - c : -c;
+      return { dy: 0, rot: 0.05 * Math.sin(Math.PI * u), squash: 1 - Math.sin(Math.PI * u) * 0.1, frame, air: 0, shift: held * hopPx * settle };
     }
     if (animal === "fish") {
       const swimming = moving && progress < 1.01;
@@ -394,18 +465,20 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     for (const track of plan.tracks) {
       const row = byLane.get(track.lane);
       const stagger = crowded && track.lane % 2 === 1 ? spriteW * 0.75 * (1 - Math.min(1, row.progress)) : 0;
-      const x = L.startX + row.progress * L.trackLen - cam - spriteW * 0.92 - stagger;
-      if (x < -spriteW * 1.5 || x > w + spriteW) continue;
+      const trackX = L.startX + row.progress * L.trackLen - cam - spriteW * 0.92 - stagger;
+      if (trackX < -spriteW * 1.5 || trackX > w + spriteW) continue;
       const y = laneY(L, track.lane);
       const speed = speedAt(track, t) * plan.durationMs;
       const motion = bodyMotion(animal, track, row.progress, speed, t, L);
+      const x = trackX + (motion.shift || 0);
       const depth = 0.86 + (track.lane / Math.max(1, count - 1)) * 0.14;
       const sw = spriteW * depth;
       const sh = L.spriteH * depth;
 
-      g.fillStyle = "rgba(0,0,0,0.18)";
+      const lift = 1 - 0.45 * (motion.air || 0);
+      g.fillStyle = `rgba(0,0,0,${0.18 * lift})`;
       g.beginPath();
-      g.ellipse(x + sw * 0.5, y + sh * 0.36, sw * 0.34, sh * 0.09, 0, 0, Math.PI * 2);
+      g.ellipse(x + sw * 0.5, y + sh * 0.36, sw * 0.34 * lift, sh * 0.09 * lift, 0, 0, Math.PI * 2);
       g.fill();
 
       if (t > 0 && !row.done && speed > 1.25) {
@@ -429,8 +502,26 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         g.shadowBlur = 14;
       }
       const frames = sprites[track.lane].frames;
-      g.drawImage(frames[motion.frame || 0] || frames[0], -sw / 2, -sh * 0.62, sw, sh);
+      const image = frames[motion.frame || 0] || frames[0];
+      const pad = image.pad || NO_PAD;
+      const unitPx = sw / SPRITE_W;
+      g.drawImage(image, -sw / 2 - pad.left * unitPx, -sh * 0.62 - pad.top * unitPx, (SPRITE_W + pad.left + pad.right) * unitPx, (SPRITE_H + pad.top + pad.bottom) * unitPx);
       g.restore();
+
+      if (animal === "frog" && t > 0 && row.progress < 1.01) {
+        const unit = Math.max(18, L.spriteH * 0.9);
+        const hops = ((row.progress * L.trackLen) / unit + track.phase) * HOPS_PER_STRIDE;
+        for (const splash of SPLASHES) {
+          const n = Math.floor(hops - splash.mark);
+          const age = (hops - splash.mark - n) / splash.span;
+          if (age >= 1) continue;
+          const touch = splash.kind === "land" ? n + 1 : n;
+          if (n + splash.mark < track.phase * HOPS_PER_STRIDE) continue;
+          const at = ((touch / HOPS_PER_STRIDE - track.phase) * unit) / L.trackLen;
+          const sx = L.startX + at * L.trackLen - cam - spriteW * 0.92 - stagger + sw * splash.foot;
+          drawSplash(g, sx, y + sh * 0.22, sw * (splash.kind === "land" ? 0.62 : 0.42), age, n * 7919 + track.lane * 131 + splash.kind.length, splash.kind);
+        }
+      }
 
       if (row.done && track.place <= Math.max(3, count <= 40 ? count : 10)) {
         const medal = MEDALS[track.place - 1] || "#fff";
