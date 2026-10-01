@@ -14,13 +14,14 @@ const HABITATS = {
     meadow: true,
   },
   frog: {
-    sky: ["#b5e8c8", "#f0fbe0"],
+    sky: ["#7fd6c2", "#f6fbdc"],
     far: "#6b8f3d",
-    mid: "#3f6a2a",
-    surface: ["#4f8a5e", "#28553b"],
-    mark: "rgba(190,240,170,0.35)",
-    lane: "rgba(255,255,255,0.06)",
+    mid: "#2f7a4c",
+    surface: ["#39a58b", "#12534a"],
+    mark: "rgba(222,255,238,0.42)",
+    lane: "rgba(255,255,255,0.08)",
     decor: "reed",
+    marsh: true,
   },
   fish: {
     sky: ["#9cc3f5", "#e1ecfb"],
@@ -251,10 +252,91 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     g.fillRect(0, top + 3, w, L.boardH + 8);
   }
 
+  function drawMarshBackdrop(g, w, L, cam, t) {
+    const top = L.skyH;
+    const sky = g.createLinearGradient(0, 0, 0, top + 4);
+    sky.addColorStop(0, "#5cc7b4");
+    sky.addColorStop(0.55, "#bfeacb");
+    sky.addColorStop(1, "#fbf6d2");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, top + 6);
+
+    const sun = g.createRadialGradient(w * 0.2, top * 0.62, 0, w * 0.2, top * 0.62, top * 0.9);
+    sun.addColorStop(0, "rgba(255,236,170,0.95)");
+    sun.addColorStop(0.3, "rgba(255,225,160,0.4)");
+    sun.addColorStop(1, "rgba(255,225,160,0)");
+    g.fillStyle = sun;
+    g.fillRect(0, 0, w, top + 6);
+
+    const tile = 340;
+    const drift = cam * 0.05 + (Math.max(0, t) / 1000) * 4;
+    const firstWisp = Math.floor(drift / tile) - 1;
+    for (let i = firstWisp; i < firstWisp + Math.ceil(w / tile) + 3; i += 1) {
+      const rand = mulberry32(hashString(`wisp:${i}`));
+      drawCloud(g, i * tile - drift + rand() * tile * 0.4, top * (0.12 + rand() * 0.28), top * (0.09 + rand() * 0.06), 0.45);
+    }
+
+    ridge(g, w, top + 4, top * 0.55, 220, cam * 0.06, 0.9, "rgba(110,180,170,0.75)");
+    ridge(g, w, top + 4, top * 0.42, 150, cam * 0.12 + 60, 2.8, "rgba(78,150,128,0.9)");
+    ridge(g, w, top + 4, top * 0.3, 110, cam * 0.22 + 30, 4.4, "#3d8a62");
+
+    const mist = g.createLinearGradient(0, top * 0.45, 0, top + 4);
+    mist.addColorStop(0, "rgba(255,255,255,0)");
+    mist.addColorStop(0.7, "rgba(235,252,240,0.5)");
+    mist.addColorStop(1, "rgba(235,252,240,0.15)");
+    g.fillStyle = mist;
+    g.fillRect(0, top * 0.45, w, top * 0.6);
+
+    // Reed bank behind the fence.
+    const back = g.createLinearGradient(0, top, 0, top + L.boardH + 10);
+    back.addColorStop(0, "#2f7a52");
+    back.addColorStop(1, "#174d3a");
+    g.fillStyle = back;
+    g.fillRect(0, top + 3, w, L.boardH + 8);
+  }
+
+  function drawLilyPad(g, x, y, size, rand) {
+    const tilt = (rand() - 0.5) * 0.5;
+    const notch = rand() * Math.PI * 2;
+    g.save();
+    g.translate(x, y);
+    g.rotate(tilt);
+    g.fillStyle = "rgba(4,50,44,0.3)";
+    g.beginPath();
+    g.ellipse(2, 3, size, size * 0.34, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = rand() < 0.5 ? "#62c26e" : "#4aaa62";
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.ellipse(0, 0, size, size * 0.32, 0, notch + 0.35, notch + Math.PI * 2 - 0.35);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = "rgba(210,255,200,0.55)";
+    g.lineWidth = 1.1;
+    g.beginPath();
+    g.ellipse(0, -size * 0.04, size * 0.8, size * 0.22, 0, Math.PI * 1.1, Math.PI * 1.8);
+    g.stroke();
+    if (rand() < 0.28) {
+      const px = size * 0.18;
+      for (let p = -2; p <= 2; p += 1) {
+        g.fillStyle = p === 0 ? "#ffc3dd" : "#ff93c0";
+        g.beginPath();
+        g.ellipse(p * px * 0.7, -size * 0.2 - Math.abs(p) * -1, px * 0.55, size * 0.3 - Math.abs(p) * 1.4, p * 0.35, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.fillStyle = "#ffe27a";
+      g.beginPath();
+      g.arc(0, -size * 0.12, size * 0.07, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+  }
+
   function drawSky(g, w, L, cam, t) {
-    if (habitat.meadow) {
-      drawMeadowBackdrop(g, w, L, cam, t);
-      const tile = 130;
+    if (habitat.meadow || habitat.marsh) {
+      if (habitat.marsh) drawMarshBackdrop(g, w, L, cam, t);
+      else drawMeadowBackdrop(g, w, L, cam, t);
+      const tile = habitat.marsh ? 110 : 130;
       const offset = cam * 0.45;
       const first = Math.floor(offset / tile) - 1;
       for (let i = first; i < first + Math.ceil(w / tile) + 3; i += 1) {
@@ -323,20 +405,44 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       g.arc(x - size * 0.12, base - size * 0.84, size * 0.1, 0, Math.PI * 2);
       g.fill();
     } else if (kind === "reed") {
-      g.strokeStyle = habitat.mid;
-      g.lineWidth = 2;
-      for (let j = 0; j < 5; j += 1) {
-        const rx = x + (j - 2) * size * 0.08;
-        const top = base - size * (0.6 + rand() * 0.4);
+      g.fillStyle = "rgba(6,46,36,0.25)";
+      g.beginPath();
+      g.ellipse(x, base, size * 0.34, size * 0.05, 0, 0, Math.PI * 2);
+      g.fill();
+      g.lineCap = "round";
+      // Flat leaf blades first, then the cattail stems in front of them.
+      for (let j = 0; j < 4; j += 1) {
+        const lx = x + (j - 1.5) * size * 0.1;
+        const tip = base - size * (0.5 + rand() * 0.35);
+        g.strokeStyle = j % 2 ? "#2f8f5c" : "#3da56a";
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(lx, base);
+        g.quadraticCurveTo(lx + (j - 1.5) * size * 0.1, (base + tip) / 2, lx + (j - 1.5) * size * 0.2, tip);
+        g.stroke();
+      }
+      for (let j = 0; j < 3; j += 1) {
+        const rx = x + (j - 1) * size * 0.11;
+        const top = base - size * (0.78 + rand() * 0.3);
+        const lean = (rand() - 0.5) * size * 0.1;
+        g.strokeStyle = "#1f7048";
+        g.lineWidth = 2;
         g.beginPath();
         g.moveTo(rx, base);
-        g.quadraticCurveTo(rx + 4, (base + top) / 2, rx + (rand() - 0.5) * 8, top);
+        g.quadraticCurveTo(rx + lean * 0.4, (base + top) / 2, rx + lean, top);
         g.stroke();
-        if (j % 2 === 0) {
-          g.fillStyle = "#6b4226";
-          roundRect(g, rx - 2.5, top + 4, 5, size * 0.16, 2.5);
-          g.fill();
-        }
+        g.fillStyle = "#7a4a2a";
+        roundRect(g, rx + lean - 3, top - size * 0.02, 6, size * 0.2, 3);
+        g.fill();
+        g.fillStyle = "rgba(255,210,160,0.35)";
+        roundRect(g, rx + lean - 2, top, 1.8, size * 0.15, 1);
+        g.fill();
+        g.strokeStyle = "#a98858";
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(rx + lean, top - size * 0.02);
+        g.lineTo(rx + lean, top - size * 0.1);
+        g.stroke();
       }
     } else if (kind === "pine") {
       g.fillStyle = habitat.mid;
@@ -530,6 +636,57 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       g.fillRect(0, L.skyH + L.boardH + 4, w, L.fieldTop + 30 - (L.skyH + L.boardH + 4));
     }
 
+    if (habitat.marsh) {
+      // Sky reflection near the bank, then slow depth bands across the water.
+      const reflect = g.createLinearGradient(0, L.skyH + L.boardH + 4, 0, L.fieldTop + L.fieldH * 0.45);
+      reflect.addColorStop(0, "rgba(255,244,200,0.3)");
+      reflect.addColorStop(1, "rgba(255,244,200,0)");
+      g.fillStyle = reflect;
+      g.fillRect(0, L.skyH + L.boardH + 4, w, L.fieldTop + L.fieldH * 0.45 - (L.skyH + L.boardH + 4));
+      const bands = count <= 12 ? count : Math.max(6, Math.round(L.fieldH / 44));
+      const bandH = L.fieldH / bands;
+      for (let b = 0; b < bands; b += 1) {
+        g.fillStyle = b % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(0,30,30,0.07)";
+        g.fillRect(0, L.fieldTop + b * bandH, w, bandH + 0.5);
+      }
+      // Shimmering glints that slide with the current.
+      g.strokeStyle = "rgba(255,248,210,0.35)";
+      g.lineWidth = 1.4;
+      g.lineCap = "round";
+      const glintCell = 170;
+      const glintCol = Math.floor(cam / glintCell) - 1;
+      const glintRows = Math.max(3, Math.round(L.fieldH / 60));
+      for (let c = glintCol; c < glintCol + Math.ceil(w / glintCell) + 2; c += 1) {
+        for (let r = 0; r < glintRows; r += 1) {
+          const rand = mulberry32(hashString(`glint:${c}:${r}`));
+          if (rand() < 0.4) continue;
+          const pulse = 0.5 + 0.5 * Math.sin(Math.max(0, t) / 700 + rand() * 6.28);
+          g.globalAlpha = 0.25 + pulse * 0.75;
+          const gx = c * glintCell - cam + rand() * glintCell;
+          const gy = L.fieldTop + (r + rand()) * (L.fieldH / glintRows);
+          g.beginPath();
+          g.moveTo(gx, gy);
+          g.lineTo(gx + 14 + rand() * 20, gy);
+          g.stroke();
+        }
+      }
+      g.globalAlpha = 1;
+      g.lineCap = "butt";
+      // Lily pads and the odd lotus drifting on the surface.
+      const padCell = 230;
+      const padCol = Math.floor(cam / padCell) - 1;
+      const padRows = Math.max(2, Math.round(L.fieldH / 90));
+      for (let c = padCol; c < padCol + Math.ceil(w / padCell) + 2; c += 1) {
+        for (let r = 0; r < padRows; r += 1) {
+          const rand = mulberry32(hashString(`pad:${c}:${r}`));
+          if (rand() < 0.45) continue;
+          const px = c * padCell - cam + rand() * padCell;
+          const py = L.fieldTop + (r + 0.2 + rand() * 0.6) * (L.fieldH / padRows);
+          drawLilyPad(g, px, py, 12 + rand() * 11, rand);
+        }
+      }
+    }
+
     if (count <= 24) {
       g.strokeStyle = habitat.lane;
       g.lineWidth = 1;
@@ -563,6 +720,8 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
           g.lineTo(x + 2, y - blade - 2);
           g.moveTo(x + 4, y);
           g.lineTo(x + 7, y - blade);
+        } else if (habitat.marsh) {
+          g.ellipse(x + len / 2, y, len * 0.6, len * 0.15, 0, 0, Math.PI * 2);
         } else {
           g.moveTo(x, y);
           g.quadraticCurveTo(x + len / 2, y - 3, x + len, y);
