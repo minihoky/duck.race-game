@@ -1494,47 +1494,64 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     return { dy: 0, rot: 0, squash: 1, frame: 1 + Math.floor(cycle * 6) };
   }
 
-  // Lowest opaque row of a baked sprite, as a fraction of the sprite height measured from the lane line.
-  let footFrac = null;
-  function footLevel(image) {
-    if (footFrac != null) return footFrac;
-    footFrac = 0.3;
+  // Opaque extent of the baked sprite, as fractions of the sprite height measured from the lane line.
+  // `bottom` is averaged over every frame so the contact point does not jump with the stride.
+  let extent = null;
+  function extentOf(frames) {
+    if (extent) return extent;
+    extent = { top: -0.5, bottom: 0.3 };
     try {
-      const pad = image.pad || NO_PAD;
-      const data = image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
-      for (let row = image.height - 1; row >= 0; row -= 1) {
-        let hits = 0;
-        for (let col = 0; col < image.width; col += 1) {
-          if (data[(row * image.width + col) * 4 + 3] > 80) hits += 1;
-        }
-        if (hits >= 4) {
-          const units = ((row + 1) / image.height) * (SPRITE_H + pad.top + pad.bottom) - pad.top;
-          footFrac = -0.62 + units / SPRITE_H - 0.012;
-          break;
-        }
+      let topSum = 0;
+      let bottomSum = 0;
+      let seen = 0;
+      for (const image of frames) {
+        const pad = image.pad || NO_PAD;
+        const data = image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
+        const toFrac = (row) => -0.62 + (((row / image.height) * (SPRITE_H + pad.top + pad.bottom)) - pad.top) / SPRITE_H;
+        const solid = (row) => {
+          let hits = 0;
+          for (let col = 0; col < image.width; col += 1) {
+            if (data[(row * image.width + col) * 4 + 3] > 80 && ++hits >= 4) return true;
+          }
+          return false;
+        };
+        let first = 0;
+        while (first < image.height && !solid(first)) first += 1;
+        let last = image.height - 1;
+        while (last > first && !solid(last)) last -= 1;
+        topSum += toFrac(first);
+        bottomSum += toFrac(last + 1);
+        seen += 1;
       }
+      if (seen) extent = { top: topSum / seen, bottom: bottomSum / seen };
     } catch {
-      footFrac = 0.3;
+      extent = { top: -0.5, bottom: 0.3 };
     }
-    return footFrac;
+    return extent;
   }
 
   const DUST_STEP = 60;
   const DUST_LIFE = 1000;
   const dustPower = new Map();
 
-  // How hard the turtle was pushing forward at a past moment (0 when coasting or slowing).
+  // How hard the turtle was pushing forward at a past moment, and how fast it was going.
+  // `power` is the strength of the burst (acceleration plus a light trail while moving fast);
+  // `pace` is the speed relative to the average, which sets how big and long-lived the cloud is.
   function pushAt(track, when) {
-    if (when <= 0 || when >= track.finishMs) return when > 0 ? 0 : 0;
+    if (when <= 0 || when >= track.finishMs) return { power: 0, pace: 0 };
     const key = track.lane * 1000003 + Math.round(when / DUST_STEP);
-    if (dustPower.has(key)) return dustPower.get(key);
+    const known = dustPower.get(key);
+    if (known) return known;
     const now = speedAt(track, when) * plan.durationMs;
     const before = speedAt(track, when - 300) * plan.durationMs;
     const gain = now - before;
-    const power = clamp((gain - 0.08) / 0.5, 0, 1);
+    const pace = clamp(now / 2, 0.15, 1.5);
+    const burst = clamp((gain - 0.06) / 0.45, 0, 1);
+    const cruise = clamp((now - 0.9) * 0.35, 0, 0.35);
+    const entry = { power: Math.max(burst, cruise) * (0.55 + pace * 0.45), pace };
     if (dustPower.size > 40000) dustPower.clear();
-    dustPower.set(key, power);
-    return power;
+    dustPower.set(key, entry);
+    return entry;
   }
 
   function drawDust(g, track, row, t, x, ground, sw, sh, cam, spriteW, viewW, L) {
@@ -1547,15 +1564,15 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const born = index * DUST_STEP;
       const age = (t - born) / DUST_LIFE;
       if (age < 0 || age >= 1) continue;
-      const power = pushAt(track, born);
+      const { power, pace } = pushAt(track, born);
       if (power <= 0.02) continue;
       const rand = mulberry32(hashString(`dust:${track.lane}:${index}`));
       const bornX = L.startX + progressAt(track, born) * L.trackLen - cam - spriteW * 0.92;
       const originX = bornX + sw * (0.16 + rand() * 0.08);
       const ease = 1 - Math.pow(1 - age, 2);
-      const billow = sh * (0.07 + power * 0.1) * (0.6 + ease * 1.5);
-      const px = originX - sw * 0.16 * ease - rand() * sw * 0.05;
-      const py = ground - sh * 0.04 - ease * sh * (0.14 + power * 0.16) * (0.7 + rand() * 0.6);
+      const billow = sh * (0.06 + power * 0.08 + pace * 0.05) * (0.6 + ease * (1.2 + pace));
+      const px = originX - sw * (0.1 + pace * 0.22) * ease - rand() * sw * 0.05;
+      const py = ground - sh * 0.04 - ease * sh * (0.1 + power * 0.16 + pace * 0.06) * (0.7 + rand() * 0.6);
       if (px < -sw || px > viewW + sw) continue;
       const fadeIn = Math.min(1, age / 0.08);
       const alpha = power * 0.5 * Math.pow(1 - age, 1.6) * fadeIn;
@@ -1581,7 +1598,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       }
       // A few kicked-up grains that arc away from the flippers.
       if (age < 0.5 && power > 0.25) {
-        const grains = 2;
+        const grains = pace > 0.9 ? 4 : 2;
         for (let n = 0; n < grains; n += 1) {
           const gv = (0.4 + rand() * 0.9) * sh * 0.9;
           const ga = -Math.PI * (0.62 + rand() * 0.3);
@@ -1597,6 +1614,206 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       }
     }
     g.restore();
+  }
+
+  // ---- Fish: partly submerged body, surface ripples, bow wave, and spray ----
+  const tinted = new WeakMap();
+  const WATERLINE = 0.4;
+
+  function submergedImage(image, waterFrac) {
+    const known = tinted.get(image);
+    if (known) return known;
+    const pad = image.pad || NO_PAD;
+    const copy = document.createElement("canvas");
+    copy.width = image.width;
+    copy.height = image.height;
+    const k = copy.getContext("2d");
+    k.drawImage(image, 0, 0);
+    k.globalCompositeOperation = "source-atop";
+    const row = (((waterFrac + 0.62) * SPRITE_H + pad.top) / (SPRITE_H + pad.top + pad.bottom)) * image.height;
+    const grad = k.createLinearGradient(0, row - 6, 0, image.height);
+    grad.addColorStop(0, "rgba(150,226,244,0.42)");
+    grad.addColorStop(0.45, "rgba(40,158,210,0.58)");
+    grad.addColorStop(1, "rgba(8,82,150,0.74)");
+    k.fillStyle = grad;
+    k.fillRect(0, 0, image.width, image.height);
+    tinted.set(image, copy);
+    return copy;
+  }
+
+  const RIPPLE_STEP = 70;
+  const RIPPLE_LIFE = 1300;
+  const ripplePower = new Map();
+
+  function swimAt(track, when) {
+    const key = track.lane * 1000003 + Math.round(when / RIPPLE_STEP);
+    const known = ripplePower.get(key);
+    if (known != null) return known;
+    const pace = when > 0 && when < track.finishMs + 600 ? clamp((speedAt(track, when) * plan.durationMs) / 2, 0.12, 1.5) : 0.12;
+    if (ripplePower.size > 40000) ripplePower.clear();
+    ripplePower.set(key, pace);
+    return pace;
+  }
+
+  function surfaceRipples(g, track, t, waterY, sw, sh, cam, spriteW, viewW, L) {
+    const newest = Math.floor(t / RIPPLE_STEP);
+    const total = Math.ceil(RIPPLE_LIFE / RIPPLE_STEP);
+    g.save();
+    g.lineCap = "round";
+    for (let k = 0; k < total; k += 1) {
+      const index = newest - k;
+      const born = index * RIPPLE_STEP;
+      const age = (t - born) / RIPPLE_LIFE;
+      if (age < 0 || age >= 1) continue;
+      const pace = swimAt(track, born);
+      const racing = born > 0;
+      if (!racing && index % 9 !== 0) continue;
+      const power = racing ? 0.4 + pace * 0.6 : 0.25;
+      const bornX = L.startX + progressAt(track, born) * L.trackLen - cam - spriteW * 0.92;
+      const cx = bornX + sw * 0.62;
+      if (cx < -sw * 2 || cx > viewW + sw * 2) continue;
+      const ease = 1 - Math.pow(1 - age, 1.8);
+      const rx = sw * (0.1 + ease * (0.4 + pace * 0.55));
+      const ry = rx * 0.2;
+      const fade = Math.pow(1 - age, 1.4);
+      for (let ring = 0; ring < 2; ring += 1) {
+        const scale = ring ? 0.58 : 1;
+        g.strokeStyle = `rgba(238,252,255,${(ring ? 0.5 : 0.85) * fade * Math.min(1, power)})`;
+        g.lineWidth = (0.9 + pace * 1.9) * (1 - age * 0.6) * (ring ? 0.8 : 1);
+        g.beginPath();
+        g.ellipse(cx, waterY + sh * 0.02, rx * scale, ry * scale, 0, 0, Math.PI * 2);
+        g.stroke();
+      }
+      if (age < 0.35) {
+        const glow = g.createRadialGradient(cx, waterY, 0, cx, waterY, rx);
+        glow.addColorStop(0, `rgba(255,255,255,${0.35 * fade * power})`);
+        glow.addColorStop(1, "rgba(255,255,255,0)");
+        g.save();
+        g.translate(cx, waterY);
+        g.scale(1, 0.22);
+        g.fillStyle = glow;
+        g.translate(-cx, -waterY);
+        g.beginPath();
+        g.arc(cx, waterY, rx, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    }
+    g.restore();
+  }
+
+  function bowWave(g, t, x, waterY, sw, sh, pace) {
+    const nose = x + sw * 0.94;
+    const len = sw * (0.28 + pace * 0.55);
+    const spread = sh * (0.05 + pace * 0.1);
+    const wobble = Math.sin(t / 90) * 0.8;
+    g.save();
+    g.lineCap = "round";
+    for (const side of [-1, 1]) {
+      g.strokeStyle = `rgba(245,253,255,${0.35 + pace * 0.4})`;
+      g.lineWidth = 1.2 + pace * 1.8;
+      g.beginPath();
+      g.moveTo(nose, waterY);
+      g.quadraticCurveTo(nose - len * 0.5, waterY + side * spread * 0.35 + wobble, nose - len, waterY + side * spread);
+      g.stroke();
+      g.strokeStyle = `rgba(245,253,255,${0.22 + pace * 0.25})`;
+      g.lineWidth = 0.9 + pace;
+      g.beginPath();
+      g.moveTo(nose - len * 0.15, waterY);
+      g.quadraticCurveTo(nose - len * 0.6, waterY + side * spread * 0.5, nose - len * 1.25, waterY + side * spread * 1.35);
+      g.stroke();
+    }
+    // Foam riding along the waterline.
+    for (let f = 0; f < 5; f += 1) {
+      const fx = x + sw * (0.2 + f * 0.17) - ((t / 5) % 6);
+      g.fillStyle = `rgba(255,255,255,${0.35 + 0.25 * Math.sin(t / 120 + f * 2)})`;
+      g.beginPath();
+      g.ellipse(fx, waterY + sh * 0.015, sw * 0.045, sh * 0.018, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+  }
+
+  function sprayAndBubbles(g, t, x, waterY, sw, sh, pace, lane) {
+    g.save();
+    if (pace > 0.7) {
+      const drops = pace > 1.05 ? 7 : 4;
+      for (let i = 0; i < drops; i += 1) {
+        const phase = (t / (320 - pace * 70) + i / drops + lane * 0.13) % 1;
+        const rand = mulberry32(hashString(`spray:${lane}:${i}`));
+        const vx = sw * (0.12 + rand() * 0.28) * (0.6 + pace * 0.5);
+        const vy = sh * (0.28 + rand() * 0.34) * (0.6 + pace * 0.6);
+        const dx = vx * phase * 1.2;
+        const dy = -vy * phase + sh * 0.7 * phase * phase;
+        g.fillStyle = `rgba(240,252,255,${0.85 * (1 - phase)})`;
+        g.beginPath();
+        g.arc(x + sw * 0.96 + dx * 0.4 - sw * 0.1 * phase, waterY + dy, Math.max(1, sh * (0.022 + rand() * 0.014)), 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    // Bubbles streaming off the tail and rising to the surface.
+    g.lineWidth = 1;
+    for (let i = 0; i < 6; i += 1) {
+      const phase = (t / (900 - pace * 250) + i / 6 + lane * 0.21) % 1;
+      const rand = mulberry32(hashString(`bubble:${lane}:${i}`));
+      const bx = x + sw * 0.12 - phase * sw * (0.25 + pace * 0.35) - rand() * sw * 0.05;
+      const by = waterY + sh * (0.26 + rand() * 0.12) - phase * sh * 0.22 + Math.sin(phase * 12 + i) * 1.5;
+      g.strokeStyle = `rgba(230,250,255,${0.75 * (1 - phase)})`;
+      g.beginPath();
+      g.arc(bx, by, 1.2 + rand() * 1.8 * (0.6 + pace * 0.4), 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  function drawSwimmer(g, paint, image, frames, track, row, t, x, y, sw, sh, cam, spriteW, viewW, L, speed) {
+    const span = extentOf(frames);
+    const waterFrac = span.top + (span.bottom - span.top) * WATERLINE;
+    const waterY = y + sh * waterFrac;
+    const pace = t > 0 && !row.done ? clamp(speed / 2, 0.12, 1.5) : row.done ? 0.2 : 0.12;
+    const amp = 0.7 + pace * 2.2;
+    const left = x - sw * 1.2;
+    const right = x + sw * 2.2;
+    const surface = (clipBelow) => {
+      g.beginPath();
+      g.moveTo(left, clipBelow ? y + sh * 2 : y - sh * 2);
+      g.lineTo(left, waterY);
+      for (let px = left; px <= right; px += 6) {
+        g.lineTo(px, waterY + Math.sin(px * 0.11 + t / (140 - pace * 40)) * amp);
+      }
+      g.lineTo(right, waterY);
+      g.lineTo(right, clipBelow ? y + sh * 2 : y - sh * 2);
+      g.closePath();
+    };
+    // Back and dorsal fin above the surface, belly and tail seen through the water.
+    g.save();
+    surface(false);
+    g.clip();
+    paint(image, true);
+    g.restore();
+    g.save();
+    surface(true);
+    g.clip();
+    paint(submergedImage(image, waterFrac), false);
+    g.restore();
+
+    // Meniscus: a bright rim where the water meets the body.
+    g.save();
+    g.lineCap = "round";
+    g.strokeStyle = `rgba(235,252,255,${0.55 + pace * 0.3})`;
+    g.lineWidth = 1.3 + pace;
+    g.beginPath();
+    for (let px = x + sw * 0.05; px <= x + sw * 1.0; px += 5) {
+      const py = waterY + Math.sin(px * 0.11 + t / (140 - pace * 40)) * amp;
+      if (px === x + sw * 0.05) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.stroke();
+    g.restore();
+
+    if (count <= 30) surfaceRipples(g, track, t, waterY, sw, sh, cam, spriteW, viewW, L);
+    bowWave(g, t, x, waterY, sw, sh, pace);
+    if (count <= 30) sprayAndBubbles(g, t, x, waterY, sw, sh, pace, track.lane);
   }
 
   function drawRacers(g, w, L, cam, t, rows, follow) {
@@ -1626,19 +1843,22 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const lift = 1 - 0.45 * (motion.air || 0);
       if (animal === "turtle") {
         // Contact shadow tucked right under the flippers so the turtle sits on the sand.
-        const ground = y + sh * footLevel(sprites[track.lane].frames[0]);
-        const spread = sw * 0.37;
-        const pool = g.createRadialGradient(x + sw * 0.46, ground, 0, x + sw * 0.46, ground, spread);
-        pool.addColorStop(0, "rgba(70,40,10,0.42)");
-        pool.addColorStop(0.55, "rgba(70,40,10,0.24)");
-        pool.addColorStop(1, "rgba(70,40,10,0)");
+        const foot = extentOf(sprites[track.lane].frames).bottom;
+        // Centre the shadow a little above the flipper tips so it tucks under the shell.
+        const ground = y + sh * (foot - 0.03);
+        const spread = sw * 0.4;
+        const cx = x + sw * 0.46;
+        const pool = g.createRadialGradient(cx, ground, 0, cx, ground, spread);
+        pool.addColorStop(0, "rgba(60,34,8,0.55)");
+        pool.addColorStop(0.5, "rgba(60,34,8,0.34)");
+        pool.addColorStop(1, "rgba(60,34,8,0)");
         g.save();
         g.translate(0, ground);
-        g.scale(1, (sh * 0.075) / spread);
+        g.scale(1, (sh * 0.085) / spread);
         g.translate(0, -ground);
         g.fillStyle = pool;
         g.beginPath();
-        g.arc(x + sw * 0.46, ground, spread, 0, Math.PI * 2);
+        g.arc(cx, ground, spread, 0, Math.PI * 2);
         g.fill();
         g.restore();
         if (t > 0 && row.progress < 1.01) drawDust(g, track, row, t, x, ground, sw, sh, cam, spriteW, w, L);
@@ -1661,20 +1881,27 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         }
       }
 
-      g.save();
-      g.translate(x + sw / 2, y + motion.dy);
-      g.rotate(motion.rot);
-      g.scale(1 / motion.squash, motion.squash);
-      if (follow === track.lane) {
-        g.shadowColor = "#fff";
-        g.shadowBlur = 14;
-      }
       const frames = sprites[track.lane].frames;
       const image = frames[motion.frame || 0] || frames[0];
       const pad = image.pad || NO_PAD;
       const unitPx = sw / SPRITE_W;
-      g.drawImage(image, -sw / 2 - pad.left * unitPx, -sh * 0.62 - pad.top * unitPx, (SPRITE_W + pad.left + pad.right) * unitPx, (SPRITE_H + pad.top + pad.bottom) * unitPx);
-      g.restore();
+      const paint = (picture, glow) => {
+        g.save();
+        g.translate(x + sw / 2, y + motion.dy);
+        g.rotate(motion.rot);
+        g.scale(1 / motion.squash, motion.squash);
+        if (glow && follow === track.lane) {
+          g.shadowColor = "#fff";
+          g.shadowBlur = 14;
+        }
+        g.drawImage(picture, -sw / 2 - pad.left * unitPx, -sh * 0.62 - pad.top * unitPx, (SPRITE_W + pad.left + pad.right) * unitPx, (SPRITE_H + pad.top + pad.bottom) * unitPx);
+        g.restore();
+      };
+      if (animal === "fish") {
+        drawSwimmer(g, paint, image, frames, track, row, t, x, y, sw, sh, cam, spriteW, w, L, speed);
+      } else {
+        paint(image, true);
+      }
 
       if (animal === "frog" && t > 0 && row.progress < 1.01) {
         const unit = Math.max(18, L.spriteH * 0.9);
