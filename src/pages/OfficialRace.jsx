@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import RaceStage from "../components/RaceStage";
 import { api } from "../lib/api";
 import { me, publishAccount } from "../lib/auth";
 import { usePageTitle } from "../lib/usePageTitle";
+import { ANIMALS, PALETTE, bakeSprite } from "../race/art";
 
 const DURATIONS = [10, 15, 20, 30, 45, 60, 90, 120];
 
@@ -27,24 +29,8 @@ function writeCache(race) {
   return payload;
 }
 
-function clock(seconds) {
-  const total = Math.max(0, Number(seconds) || 0);
-  const hh = String(Math.floor(total / 3600)).padStart(2, "0");
-  const mm = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
-  const ss = String(total % 60).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-function rememberSetup(race) {
-  sessionStorage.setItem(
-    "duck-official-setup",
-    JSON.stringify({
-      id: race.id,
-      name: race.name,
-      names: race.names,
-      durationSec: Math.round((race.durationMs || 0) / 1000),
-    })
-  );
+function offsetOf(saved) {
+  return saved.serverNow - saved.localNow;
 }
 
 function SignInNotice({ title, text }) {
@@ -66,36 +52,61 @@ function SignInNotice({ title, text }) {
 function RacePlayer({ id }) {
   const cached = readCache(id);
   const [race, setRace] = useState(cached?.race || null);
+  const [clockOffset, setClockOffset] = useState(cached ? offsetOf(cached) : 0);
+  const [connected, setConnected] = useState(true);
   const [missing, setMissing] = useState(false);
   const [authError, setAuthError] = useState(false);
-  const [error, setError] = useState("");
-  const frame = useRef(null);
-  const paid = useRef(false);
+  const [credits, setCredits] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+  const status = useRef(cached?.race?.status || "");
   usePageTitle(race ? `${race.name} - Duck Race` : "Official Race - Duck Race");
+
+  function accept(next) {
+    const saved = writeCache(next);
+    status.current = next.status;
+    setRace(next);
+    setClockOffset((current) => {
+      const measured = offsetOf(saved);
+      return Math.abs(measured - current) > 250 ? measured : current;
+    });
+  }
 
   useEffect(() => {
     const next = readCache(id);
     setRace(next?.race || null);
+    if (next) setClockOffset(offsetOf(next));
+    status.current = next?.race?.status || "";
     setMissing(false);
     setAuthError(false);
-    setError("");
-    paid.current = false;
+    setStartError("");
   }, [id]);
+
+  useEffect(() => {
+    me().then((user) => setCredits(user ? user.credits : null));
+    function onAccount(event) {
+      setCredits(event.detail ? event.detail.credits : null);
+    }
+    window.addEventListener("duck-account", onAccount);
+    return () => window.removeEventListener("duck-account", onAccount);
+  }, []);
 
   useEffect(() => {
     let stop = false;
     async function pull() {
+      if (status.current === "finished") return;
       try {
         const data = await api(`/api/races/${id}`);
         if (stop) return;
-        writeCache(data.race);
-        setRace(data.race);
+        accept(data.race);
+        setConnected(true);
         setMissing(false);
         setAuthError(false);
       } catch (error) {
         if (stop) return;
         if (error.status === 401) setAuthError(true);
-        if (error.status === 404) setMissing(true);
+        else if (error.status === 404) setMissing(true);
+        else setConnected(false);
       }
     }
     pull();
@@ -106,30 +117,19 @@ function RacePlayer({ id }) {
     };
   }, [id]);
 
-  useEffect(() => {
-    function onMessage(event) {
-      if (event.origin !== window.location.origin) return;
-      if (!event.data || event.data.type !== "duck-official-started" || event.data.id !== id) return;
-      if (paid.current) return;
-      paid.current = true;
-      const current = readCache(id);
-      if (current && current.race && current.race.status !== "ready") return;
-      api(`/api/races/${id}/start`, { method: "POST", body: {} })
-        .then((data) => {
-          writeCache(data.race);
-          setRace(data.race);
-          if (data.user) publishAccount(data.user);
-        })
-        .catch((err) => {
-          paid.current = false;
-          setError(err.message);
-          const game = frame.current && frame.current.contentWindow;
-          if (game) game.postMessage({ type: "duck-official-stop", id }, window.location.origin);
-        });
+  async function start() {
+    setStarting(true);
+    setStartError("");
+    try {
+      const data = await api(`/api/races/${id}/start`, { method: "POST", body: {} });
+      accept(data.race);
+      if (data.user) publishAccount(data.user);
+    } catch (err) {
+      setStartError(err.message);
+    } finally {
+      setStarting(false);
     }
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [id]);
+  }
 
   if (authError && !race) {
     return <SignInNotice title="Sign in to restore this race" text="The official result stays on the server. Sign in again on this browser to bring the ducks back to the clock." />;
@@ -149,26 +149,47 @@ function RacePlayer({ id }) {
     return <p className="px-4 pb-16 pt-24 text-center text-gray-500">Restoring the official race…</p>;
   }
 
-  rememberSetup(race);
-  const seconds = Math.round((race.durationMs || 0) / 1000);
-  const src = `/game/index.html?countdown=${clock(seconds)}&official=${encodeURIComponent(race.id)}`;
-
   return (
-    <div>
-      {error && (
-        <div className="fixed left-1/2 top-20 z-40 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-white px-4 py-3 text-sm text-red-700 shadow-lg">
-          <p>{error}</p>
-          <Link to="/credits" className="mt-2 inline-block font-semibold text-sky-600">
-            Buy credits
-          </Link>
-        </div>
-      )}
-      <div id="game" className="game-stage">
-        <div className="game-bezel">
-          <iframe ref={frame} title={race.name} src={src} className="game-screen" />
-        </div>
+    <RaceStage
+      key={race.id}
+      race={race}
+      clockOffset={clockOffset}
+      connected={connected}
+      credits={credits}
+      starting={starting}
+      startError={startError}
+      onStart={start}
+    />
+  );
+}
+
+function AnimalPicker({ value, onChange }) {
+  const previews = useMemo(
+    () =>
+      Object.keys(ANIMALS).map((animal, index) => ({
+        animal,
+        src: bakeSprite(animal, { color: PALETTE[index * 3], pattern: "none", accessory: "none" }).toDataURL(),
+      })),
+    []
+  );
+  return (
+    <fieldset>
+      <legend className="text-sm font-semibold">Animal and habitat</legend>
+      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+        {previews.map((item) => (
+          <button
+            key={item.animal}
+            type="button"
+            onClick={() => onChange(item.animal)}
+            className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold ${value === item.animal ? "border-sky-500 bg-sky-50 text-sky-700" : "border-gray-200"}`}
+          >
+            <img src={item.src} alt="" className="mx-auto h-10 w-14 object-contain" />
+            <span className="mt-1 block">{ANIMALS[item.animal].label}</span>
+            <span className="block font-normal text-gray-500">{ANIMALS[item.animal].habitat}</span>
+          </button>
+        ))}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -178,6 +199,7 @@ function RaceSetup() {
   const [name, setName] = useState("Official race");
   const [names, setNames] = useState("Alex\nSam\nJordan\nRiley");
   const [duration, setDuration] = useState("30");
+  const [animal, setAnimal] = useState("duck");
   const [sponsors, setSponsors] = useState([]);
   const [chosen, setChosen] = useState([]);
   const [error, setError] = useState("");
@@ -195,11 +217,11 @@ function RaceSetup() {
           name,
           names: names.split("\n"),
           durationSec: Number(duration),
+          animal,
           sponsorIds: chosen,
         },
       });
       if (data.user) publishAccount(data.user);
-      rememberSetup(data.race);
       navigate(`/race/${data.race.id}`);
     } catch (err) {
       setError(err.message);
@@ -279,6 +301,7 @@ function RaceSetup() {
             required
           />
         </label>
+        <AnimalPicker value={animal} onChange={setAnimal} />
         <label className="block text-sm font-semibold">
           Race length
           <select

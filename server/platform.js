@@ -48,32 +48,53 @@ function id12() {
   return randomBytes(9).toString("base64url");
 }
 
-function mulberry32(seed) {
-  let value = seed >>> 0;
-  return function next() {
-    value = (value + 0x6d2b79f5) >>> 0;
-    let t = value;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+export const RACE_ALGORITHM = "race-v2";
+export const LEAD_IN_MS = 3000;
+export const ANIMALS = ["duck", "frog", "fish", "turtle", "seahorse"];
+
+function seedStream(seed, label) {
+  let counter = 0;
+  let block = Buffer.alloc(0);
+  let offset = 0;
+  return function nextUint32() {
+    if (offset + 4 > block.length) {
+      block = createHmac("sha256", String(seed)).update(`${label}:${counter}`).digest();
+      counter += 1;
+      offset = 0;
+    }
+    const value = block.readUInt32BE(offset);
+    offset += 4;
+    return value;
   };
 }
 
+function uniformBelow(next, n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  let value = next();
+  while (value >= limit) value = next();
+  return value % n;
+}
+
 export function buildEntrants(names, seed, durationMs) {
-  const rand = mulberry32(seed >>> 0);
-  const speeds = names.map(() => 0.62 + rand() * 0.38);
-  const fastest = Math.max(...speeds);
-  const rows = names.map((name, lane) => ({
-    name,
-    lane,
-    finishMs: Math.round(durationMs * (fastest / speeds[lane])),
-  }));
-  rows.sort((a, b) => a.finishMs - b.finishMs || a.lane - b.lane);
-  rows[0].finishMs = durationMs;
-  for (let i = 1; i < rows.length; i += 1) {
-    if (rows[i].finishMs <= rows[i - 1].finishMs) rows[i].finishMs = rows[i - 1].finishMs + 1;
+  const next = seedStream(seed, `${RACE_ALGORITHM}:order`);
+  const order = names.map((_, lane) => lane);
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = uniformBelow(next, i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
   }
-  return rows.map((row, index) => ({ ...row, place: index + 1 }));
+  const tailMs = Math.min(6000, 1200 + names.length * 30, durationMs * 0.3);
+  const weights = order.slice(1).map(() => 0.35 + next() / 0x100000000);
+  const total = weights.reduce((sum, value) => sum + value, 0) || 1;
+  let finishMs = durationMs;
+  const rows = order.map((lane, index) => {
+    if (index > 0) finishMs += Math.max(16, Math.round((weights[index - 1] / total) * tailMs));
+    return { name: names[lane], lane, finishMs, place: index + 1 };
+  });
+  return rows.sort((a, b) => a.lane - b.lane);
+}
+
+function motionSeed(race) {
+  return createHmac("sha256", String(race.seed)).update(`${race.algorithm || "race-v1"}:motion`).digest("hex").slice(0, 16);
 }
 
 function raceEnd(race) {
@@ -100,10 +121,14 @@ function presentRace(race) {
     names: race.entrants.map((entrant) => entrant.name),
     entrants: visible ? race.entrants.map(({ name, lane, finishMs, place }) => ({ name, lane, finishMs, place })) : [],
     sponsors: race.sponsors,
+    animal: race.animal || "duck",
     status: race.status,
     startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
     durationMs: race.durationMs,
+    leadInMs: race.leadInMs || 0,
+    algorithm: race.algorithm || "race-v1",
+    motionSeed: visible ? motionSeed(race) : "",
     createdAt: race.createdAt || null,
     serverNow: Date.now(),
   };
@@ -117,6 +142,7 @@ function summarize(race) {
     name: race.name,
     names: race.entrants.map((entrant) => entrant.name),
     winner: visible && winner ? winner.name : "",
+    animal: race.animal || "duck",
     status: race.status,
     startedAt: race.startedAt || null,
     finishedAt: race.finishedAt || null,
@@ -508,15 +534,19 @@ export async function handlePlatform(req, res, url, ctx) {
         const sponsor = state.sponsors.find((item) => item.id === sponsorId && item.userId === user.id && item.active !== false);
         if (sponsor && !sponsors.some((item) => item.id === sponsor.id)) sponsors.push({ id: sponsor.id, name: sponsor.name });
       }
-      const seed = randomBytes(4).readUInt32BE(0);
+      const animal = ANIMALS.includes(body.animal) ? body.animal : "duck";
+      const seed = randomBytes(32).toString("hex");
       const durationMs = durationSec * 1000;
       const createdAt = Date.now();
       const race = {
         id: id12(),
         userId: user.id,
         name: title,
+        animal,
+        algorithm: RACE_ALGORITHM,
         seed,
         durationMs,
+        leadInMs: LEAD_IN_MS,
         createdAt,
         startedAt: 0,
         finishedAt: 0,
@@ -558,8 +588,8 @@ export async function handlePlatform(req, res, url, ctx) {
           race: presentRace(active),
         };
       }
-      const startedAt = Date.now();
-      const outcome = applyRaceStart(user, race, startedAt);
+      const now = Date.now();
+      const outcome = applyRaceStart(user, race, now + (race.leadInMs || 0));
       if (outcome.error) return { status: outcome.status, persist: changed, error: outcome.error };
       if (outcome.charged) {
         state.ledger.push({
@@ -570,7 +600,7 @@ export async function handlePlatform(req, res, url, ctx) {
           balance: user.credits,
           note: race.name,
           raceId: race.id,
-          createdAt: startedAt,
+          createdAt: now,
         });
       }
       return { status: 200, charged: Boolean(outcome.charged), race: presentRace(race), user: viewUser(user) };
