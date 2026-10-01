@@ -506,6 +506,59 @@ const BODIES = {
     ankle[0] += knee[0];
     ankle[1] += knee[1];
 
+    const thigh = () => {
+      g.beginPath();
+      g.moveTo(175, 400);
+      g.bezierCurveTo(170, 340, 260, 320, 330, 345);
+      g.bezierCurveTo(400, 370, 445, 430, 440, 495);
+      g.bezierCurveTo(435, 535, 380, 540, 330, 515);
+      g.bezierCurveTo(260, 480, 180, 460, 175, 400);
+      g.closePath();
+    };
+    const hindLeg = (fill, shadow, near) => {
+      g.save();
+      place(ankle0, ankle, footTurn);
+      if (kick > 0.05) toe(ankle0[0], ankle0[1], 345, 552, fill);
+      toe(330, 540, 150, 522, fill);
+      toe(335, 552, 178, 572, fill);
+      toe(350, 560, 232, 592, fill);
+      g.restore();
+      g.save();
+      place(knee0, knee, shinTurn);
+      g.beginPath();
+      g.moveTo(190, 455);
+      g.bezierCurveTo(230, 535, 330, 568, 440, 560);
+      g.bezierCurveTo(455, 545, 450, 520, 430, 512);
+      g.bezierCurveTo(340, 515, 270, 480, 240, 420);
+      g.closePath();
+      outline(shadow);
+      g.restore();
+
+      g.save();
+      swing(hip, thighTurn);
+      thigh();
+      outline(fill);
+      g.save();
+      thigh();
+      g.clip();
+      g.beginPath();
+      g.ellipse(300, 480, 170, 60, 0.35, 0, Math.PI * 2);
+      g.fillStyle = shadow;
+      g.fill();
+      if (near) blots(spots.thigh);
+      g.restore();
+      thigh();
+      g.lineWidth = line;
+      g.strokeStyle = INK;
+      g.stroke();
+      g.restore();
+    };
+
+    g.save();
+    g.translate(40, -62);
+    hindLeg(shade(color, -0.22), shade(color, -0.34), false);
+    g.restore();
+
     g.save();
     swing([665, 430], -0.4 * reach);
     toe(700, 545, 760, 552, under);
@@ -558,51 +611,7 @@ const BODIES = {
     g.strokeStyle = INK;
     g.stroke();
 
-    g.save();
-    place(ankle0, ankle, footTurn);
-    if (kick > 0.05) toe(ankle0[0], ankle0[1], 345, 552, color);
-    toe(330, 540, 150, 522, color);
-    toe(335, 552, 178, 572, color);
-    toe(350, 560, 232, 592, color);
-    g.restore();
-    g.save();
-    place(knee0, knee, shinTurn);
-    g.beginPath();
-    g.moveTo(190, 455);
-    g.bezierCurveTo(230, 535, 330, 568, 440, 560);
-    g.bezierCurveTo(455, 545, 450, 520, 430, 512);
-    g.bezierCurveTo(340, 515, 270, 480, 240, 420);
-    g.closePath();
-    outline(under);
-    g.restore();
-
-    g.save();
-    swing(hip, thighTurn);
-    const thigh = () => {
-      g.beginPath();
-      g.moveTo(175, 400);
-      g.bezierCurveTo(170, 340, 260, 320, 330, 345);
-      g.bezierCurveTo(400, 370, 445, 430, 440, 495);
-      g.bezierCurveTo(435, 535, 380, 540, 330, 515);
-      g.bezierCurveTo(260, 480, 180, 460, 175, 400);
-      g.closePath();
-    };
-    thigh();
-    outline(color);
-    g.save();
-    thigh();
-    g.clip();
-    g.beginPath();
-    g.ellipse(300, 480, 170, 60, 0.35, 0, Math.PI * 2);
-    g.fillStyle = under;
-    g.fill();
-    blots(spots.thigh);
-    g.restore();
-    thigh();
-    g.lineWidth = line;
-    g.strokeStyle = INK;
-    g.stroke();
-    g.restore();
+    hindLeg(color, under, true);
 
     g.save();
     swing([615, 345], -0.45 * reach);

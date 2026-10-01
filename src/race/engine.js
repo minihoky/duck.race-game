@@ -53,8 +53,8 @@ const HABITATS = {
 const MEDALS = ["#ffd43b", "#ced4da", "#e8a15a"];
 const HOPS_PER_STRIDE = 0.7 / Math.PI;
 const SPLASHES = [
-  { mark: FROG_LANDING, span: 0.42, kind: "land", foot: 0.66 },
-  { mark: FROG_TAKEOFF, span: 0.28, kind: "push", foot: 0.2 },
+  { mark: FROG_LANDING, span: 0.3, kind: "land", foot: 0.66 },
+  { mark: FROG_TAKEOFF, span: 0.2, kind: "push", foot: 0.2 },
 ];
 
 function drawSplash(g, cx, cy, size, age, seed, kind) {
@@ -62,21 +62,21 @@ function drawSplash(g, cx, cy, size, age, seed, kind) {
   const fade = 1 - age;
   g.save();
   g.lineWidth = Math.max(1, size * 0.06);
-  for (const lag of [0, 0.28]) {
+  for (const lag of kind === "land" ? [0, 0.3] : [0]) {
     const a = (age - lag) / (1 - lag);
     if (a <= 0) continue;
-    const rx = size * (0.3 + a * 1.15);
-    g.strokeStyle = `rgba(225,247,255,${(1 - a) * 0.8})`;
+    const rx = size * (0.3 + a * 1.0);
+    g.strokeStyle = `rgba(225,247,255,${(1 - a) * 0.55})`;
     g.beginPath();
     g.ellipse(cx, cy, rx, rx * 0.27, 0, 0, Math.PI * 2);
     g.stroke();
   }
-  if (age < 0.6) {
-    const rise = Math.sin((age / 0.6) * Math.PI) * size * (kind === "land" ? 1.05 : 0.7);
-    g.fillStyle = `rgba(232,249,255,${0.9 * fade})`;
-    g.strokeStyle = `rgba(70,150,195,${0.7 * fade})`;
+  if (age < 0.5 && kind === "land") {
+    const rise = Math.sin((age / 0.5) * Math.PI) * size * 0.6;
+    g.fillStyle = `rgba(232,249,255,${0.7 * fade})`;
+    g.strokeStyle = `rgba(70,150,195,${0.5 * fade})`;
     g.lineWidth = Math.max(1, size * 0.035);
-    const spikes = kind === "land" ? 7 : 5;
+    const spikes = 5;
     for (let i = 0; i < spikes; i += 1) {
       const side = (i - (spikes - 1) / 2) / ((spikes - 1) / 2);
       const base = cx + side * size * (0.3 + age * 0.55);
@@ -92,13 +92,13 @@ function drawSplash(g, cx, cy, size, age, seed, kind) {
       g.stroke();
     }
   }
-  const drops = kind === "land" ? 12 : 7;
-  g.fillStyle = `rgba(232,249,255,${fade})`;
-  g.strokeStyle = `rgba(70,150,195,${0.85 * fade})`;
+  const drops = kind === "land" ? 4 : 0;
+  g.fillStyle = `rgba(232,249,255,${0.85 * fade})`;
+  g.strokeStyle = `rgba(70,150,195,${0.6 * fade})`;
   g.lineWidth = Math.max(0.8, size * 0.035);
   for (let i = 0; i < drops; i += 1) {
-    const angle = -Math.PI / 2 + (rand() - 0.5) * 2.3;
-    const speed = size * (1.8 + rand() * 1.6) * (kind === "land" ? 1 : 0.75);
+    const angle = -Math.PI / 2 + (rand() - 0.5) * 2.0;
+    const speed = size * (1.2 + rand() * 1.0);
     const px = cx + Math.cos(angle) * speed * age;
     const py = cy + Math.sin(angle) * speed * age * 1.3 + speed * 1.5 * age * age;
     if (py > cy + size * 0.05 || age < 0.06) continue;
@@ -153,14 +153,14 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
 
   function layout(w, h) {
     const compact = w < 640;
-    const skyH = h * (compact ? 0.24 : 0.28);
-    const boardH = clamp(h * 0.075, 22, 52);
+    const skyH = h * (compact ? 0.2 : 0.23);
+    const boardH = clamp(h * 0.07, 22, 48);
     const fieldTop = skyH + boardH + 8;
     const fieldBottom = h - (compact ? 30 : 38);
     const fieldH = fieldBottom - fieldTop;
-    const spriteH = clamp((fieldH / count) * 1.7, compact ? 22 : 30, Math.min(72, fieldH * 0.3));
+    const spriteH = clamp((fieldH / count) * 1.6, compact ? 34 : 48, Math.min(compact ? 76 : 100, fieldH * 0.26));
     const trackLen = w * clamp(plan.durationMs / 7000, 2.2, 9);
-    const startX = w * 0.14;
+    const startX = Math.max(w * 0.14, (spriteH * SPRITE_W) / SPRITE_H + 10);
     return { compact, skyH, boardH, fieldTop, fieldBottom, fieldH, spriteH, trackLen, startX, finishX: startX + trackLen };
   }
 
@@ -454,18 +454,17 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     const byLane = new Map(rows.map((row, index) => [row.track.lane, { ...row, rank: index }]));
     const labelled = new Set();
     const allLabels = L.compact ? 12 : 40;
-    if (count <= allLabels) plan.tracks.forEach((track) => labelled.add(track.lane));
-    else rows.slice(0, L.compact ? 5 : 10).forEach((row) => labelled.add(row.track.lane));
+    const laneGap = (L.fieldH - L.spriteH * 0.75) / count;
+    if (count <= allLabels && laneGap >= 22) plan.tracks.forEach((track) => labelled.add(track.lane));
+    else if (t > 0) rows.slice(0, L.compact ? 5 : 10).forEach((row) => labelled.add(row.track.lane));
     if (follow != null) labelled.add(follow);
 
     const spriteW = (L.spriteH * SPRITE_W) / SPRITE_H;
-    const crowded = (L.fieldH / count) < L.spriteH * 0.8;
     const tags = [];
     const positions = [];
     for (const track of plan.tracks) {
       const row = byLane.get(track.lane);
-      const stagger = crowded && track.lane % 2 === 1 ? spriteW * 0.75 * (1 - Math.min(1, row.progress)) : 0;
-      const trackX = L.startX + row.progress * L.trackLen - cam - spriteW * 0.92 - stagger;
+      const trackX = L.startX + row.progress * L.trackLen - cam - spriteW * 0.92;
       if (trackX < -spriteW * 1.5 || trackX > w + spriteW) continue;
       const y = laneY(L, track.lane);
       const speed = speedAt(track, t) * plan.durationMs;
@@ -518,8 +517,8 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
           const touch = splash.kind === "land" ? n + 1 : n;
           if (n + splash.mark < track.phase * HOPS_PER_STRIDE) continue;
           const at = ((touch / HOPS_PER_STRIDE - track.phase) * unit) / L.trackLen;
-          const sx = L.startX + at * L.trackLen - cam - spriteW * 0.92 - stagger + sw * splash.foot;
-          drawSplash(g, sx, y + sh * 0.22, sw * (splash.kind === "land" ? 0.62 : 0.42), age, n * 7919 + track.lane * 131 + splash.kind.length, splash.kind);
+          const sx = L.startX + at * L.trackLen - cam - spriteW * 0.92 + sw * splash.foot;
+          drawSplash(g, sx, y + sh * 0.22, sw * (splash.kind === "land" ? 0.3 : 0.2), age, n * 7919 + track.lane * 131 + splash.kind.length, splash.kind);
         }
       }
 
