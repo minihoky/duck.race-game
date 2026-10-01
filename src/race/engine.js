@@ -1531,7 +1531,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   }
 
   const DUST_STEP = 60;
-  const DUST_LIFE = 1000;
+  const DUST_LIFE = 1400;
   const dustPower = new Map();
 
   // How hard the turtle was pushing forward at a past moment, and how fast it was going.
@@ -1546,9 +1546,9 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     const before = speedAt(track, when - 300) * plan.durationMs;
     const gain = now - before;
     const pace = clamp(now / 2, 0.15, 1.5);
-    const burst = clamp((gain - 0.06) / 0.45, 0, 1);
-    const cruise = clamp((now - 0.9) * 0.35, 0, 0.35);
-    const entry = { power: Math.max(burst, cruise) * (0.55 + pace * 0.45), pace };
+    const burst = clamp((gain - 0.02) / 0.25, 0, 1);
+    const cruise = clamp((now - 0.6) * 0.6, 0, 0.55);
+    const entry = { power: Math.max(burst, cruise) * (0.7 + pace * 0.3), pace };
     if (dustPower.size > 40000) dustPower.clear();
     dustPower.set(key, entry);
     return entry;
@@ -1570,14 +1570,14 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const bornX = L.startX + progressAt(track, born) * L.trackLen - cam - spriteW * 0.92;
       const originX = bornX + sw * (0.16 + rand() * 0.08);
       const ease = 1 - Math.pow(1 - age, 2);
-      const billow = sh * (0.06 + power * 0.08 + pace * 0.05) * (0.6 + ease * (1.2 + pace));
-      const px = originX - sw * (0.1 + pace * 0.22) * ease - rand() * sw * 0.05;
-      const py = ground - sh * 0.04 - ease * sh * (0.1 + power * 0.16 + pace * 0.06) * (0.7 + rand() * 0.6);
-      if (px < -sw || px > viewW + sw) continue;
-      const fadeIn = Math.min(1, age / 0.08);
-      const alpha = power * 0.5 * Math.pow(1 - age, 1.6) * fadeIn;
+      const billow = sh * (0.12 + power * 0.14 + pace * 0.08) * (0.6 + ease * (1.3 + pace));
+      const px = originX - sw * (0.14 + pace * 0.3) * ease - rand() * sw * 0.06;
+      const py = ground - sh * 0.05 - ease * sh * (0.16 + power * 0.26 + pace * 0.1) * (0.7 + rand() * 0.6);
+      if (px < -sw * 2 || px > viewW + sw) continue;
+      const fadeIn = Math.min(1, age / 0.06);
+      const alpha = Math.min(1, power * 1.15) * Math.pow(1 - age, 1.25) * fadeIn;
       // A ragged cloud: several flattened blobs, hugging the ground and fanning out behind the flippers.
-      const blobs = count <= 12 ? 6 : 3;
+      const blobs = count <= 12 ? 9 : 4;
       for (let b = 0; b < blobs; b += 1) {
         const spread = (b / Math.max(1, blobs - 1) - 0.5) * 2;
         const bx = px + spread * billow * 1.15 + (rand() - 0.5) * billow * 0.4;
@@ -1587,9 +1587,11 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         g.translate(bx, by);
         g.scale(1.25, 0.72);
         const puff = g.createRadialGradient(0, 0, r * 0.05, 0, 0, r);
-        puff.addColorStop(0, `rgba(226,200,156,${alpha * 0.85})`);
-        puff.addColorStop(0.55, `rgba(206,174,122,${alpha * 0.55})`);
-        puff.addColorStop(1, "rgba(188,152,100,0)");
+        // Warm ochre body with a pale core so the cloud reads against light sand.
+        puff.addColorStop(0, `rgba(240,222,184,${alpha * 0.95})`);
+        puff.addColorStop(0.45, `rgba(196,156,100,${alpha * 0.85})`);
+        puff.addColorStop(0.8, `rgba(150,110,66,${alpha * 0.45})`);
+        puff.addColorStop(1, "rgba(130,92,52,0)");
         g.fillStyle = puff;
         g.beginPath();
         g.arc(0, 0, r, 0, Math.PI * 2);
@@ -1597,8 +1599,8 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         g.restore();
       }
       // A few kicked-up grains that arc away from the flippers.
-      if (age < 0.5 && power > 0.25) {
-        const grains = pace > 0.9 ? 4 : 2;
+      if (age < 0.6 && power > 0.15) {
+        const grains = pace > 0.9 ? 7 : 4;
         for (let n = 0; n < grains; n += 1) {
           const gv = (0.4 + rand() * 0.9) * sh * 0.9;
           const ga = -Math.PI * (0.62 + rand() * 0.3);
@@ -1606,9 +1608,9 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
           const gx = originX + Math.cos(ga) * gv * gt;
           const gy = ground - sh * 0.04 + Math.sin(ga) * gv * gt + sh * 1.6 * gt * gt;
           if (gy > ground + sh * 0.04) continue;
-          g.fillStyle = `rgba(206,172,118,${power * 0.8 * (1 - age * 2)})`;
+          g.fillStyle = `rgba(150,108,62,${Math.min(1, power * 1.2) * (1 - age * 1.6)})`;
           g.beginPath();
-          g.arc(gx, gy, Math.max(0.9, sh * 0.014), 0, Math.PI * 2);
+          g.arc(gx, gy, Math.max(1.2, sh * 0.02), 0, Math.PI * 2);
           g.fill();
         }
       }
@@ -1618,7 +1620,8 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
 
   // ---- Fish: partly submerged body, surface ripples, bow wave, and spray ----
   const tinted = new WeakMap();
-  const WATERLINE = 0.4;
+  // Share of the body height, measured from the top, where the surface cuts the fish (1/3 submerged).
+  const WATERLINE = 4 / 5;
 
   function submergedImage(image, waterFrac) {
     const known = tinted.get(image);
@@ -1632,7 +1635,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     k.globalCompositeOperation = "source-atop";
     const row = (((waterFrac + 0.62) * SPRITE_H + pad.top) / (SPRITE_H + pad.top + pad.bottom)) * image.height;
     const grad = k.createLinearGradient(0, row - 6, 0, image.height);
-    grad.addColorStop(0, "rgba(150,226,244,0.42)");
+    grad.addColorStop(0, "rgba(150,226,244,0.4)");
     grad.addColorStop(0.45, "rgba(40,158,210,0.58)");
     grad.addColorStop(1, "rgba(8,82,150,0.74)");
     k.fillStyle = grad;
@@ -1767,6 +1770,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   }
 
   function drawSwimmer(g, paint, image, frames, track, row, t, x, y, sw, sh, cam, spriteW, viewW, L, speed) {
+    // Only the lowest third of the body is underwater; the eyes stay clear of the surface.
     const span = extentOf(frames);
     const waterFrac = span.top + (span.bottom - span.top) * WATERLINE;
     const waterY = y + sh * waterFrac;
