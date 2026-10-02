@@ -1,5 +1,5 @@
 import { formatClock } from "../lib/format";
-import { FROG_FRAMES, FROG_LANDING, FROG_TAKEOFF, NO_PAD, SPRITE_H, SPRITE_W, bakeFrames, skinsFor } from "./art";
+import { FROG_FRAMES, FROG_LANDING, FROG_TAKEOFF, NO_PAD, SPRITE_H, SPRITE_W, bakeFrame, bakeScaleFor, frameStore, skinsFor } from "./art";
 import { buildPlan, hashString, mulberry32, progressAt, speedAt, standings } from "./motion";
 
 const HABITATS = {
@@ -151,10 +151,78 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   const animal = HABITATS[race.animal] ? race.animal : "rabbit";
   const habitat = HABITATS[animal];
   const count = plan.tracks.length;
+
+  // Sprite frames are baked lazily (see art.js): creating the engine only picks each skin, so
+  // building it for a huge field is instant and never stalls the countdown or the finish.
+  const spriteScale = bakeScaleFor(count);
+  // With a crowd the tiny sprites share every other animation frame, which halves the memory.
+  const frameStride = count > 120 ? 2 : 1;
   const sprites = plan.tracks.map((track) => {
     const skin = look(track.lane);
-    return { skin, frames: bakeFrames(animal, skin) };
+    return { skin, store: frameStore(animal, skin, spriteScale) };
   });
+
+  // At most a few milliseconds of baking per drawn frame; whatever is missing is baked next frame.
+  const BAKE_BUDGET_MS = 7;
+  let bakeDeadline = 0;
+  let bakedThisFrame = 0;
+
+  function bakeNow(store, index) {
+    const image = bakeFrame(store.animal, store.skin, index, store.scale);
+    store.frames[index] = image;
+    return image;
+  }
+
+  function sharedIndex(wanted, total) {
+    let index = Math.max(0, Math.min(total - 1, wanted || 0));
+    if (frameStride > 1 && index > 0) index = Math.min(total - 1, 1 + Math.floor((index - 1) / frameStride) * frameStride);
+    return index;
+  }
+
+  // The frame to draw for `wanted`, or null while nothing of this sprite is ready yet.
+  function frameOf(sprite, wanted) {
+    const { store } = sprite;
+    const index = sharedIndex(wanted, store.total);
+    const known = store.frames[index];
+    if (known) return known;
+    if (bakedThisFrame === 0 || performance.now() < bakeDeadline) {
+      bakedThisFrame += 1;
+      return bakeNow(store, index);
+    }
+    return store.frames[0] || null;
+  }
+
+  // Bakes every frame of one sprite regardless of the budget (used once, to measure the body).
+  function fullFrames(sprite) {
+    const { store } = sprite;
+    for (let index = 0; index < store.total; index += 1) {
+      if (!store.frames[index]) bakeNow(store, index);
+    }
+    return store.frames;
+  }
+
+  // Bakes frames in the background: every resting pose first, then the running frames.
+  const warmOrder = [0];
+  for (let index = 1; index < (sprites[0] ? sprites[0].store.total : 1); index += frameStride) warmOrder.push(index);
+  let warmPass = 0;
+  let warmLane = 0;
+
+  // Spends up to `ms` milliseconds baking; returns true once every sprite is fully baked.
+  function prewarm(ms = 5) {
+    const end = performance.now() + ms;
+    while (warmPass < warmOrder.length) {
+      while (warmLane < sprites.length) {
+        const { store } = sprites[warmLane];
+        const index = warmOrder[warmPass];
+        if (!store.frames[index]) bakeNow(store, index);
+        warmLane += 1;
+        if (performance.now() >= end) return false;
+      }
+      warmLane = 0;
+      warmPass += 1;
+    }
+    return true;
+  }
 
   function layout(w, h) {
     const compact = w < 640;
@@ -1497,14 +1565,15 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   // Opaque extent of the baked sprite, as fractions of the sprite height measured from the lane line.
   // `bottom` is averaged over every frame so the contact point does not jump with the stride.
   let extent = null;
-  function extentOf(frames) {
+  function extentOf(sprite) {
     if (extent) return extent;
     extent = { top: -0.5, bottom: 0.3 };
     try {
       let topSum = 0;
       let bottomSum = 0;
       let seen = 0;
-      for (const image of frames) {
+      for (const image of fullFrames(sprite)) {
+        if (!image) continue;
         const pad = image.pad || NO_PAD;
         const data = image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
         const toFrac = (row) => -0.62 + (((row / image.height) * (SPRITE_H + pad.top + pad.bottom)) - pad.top) / SPRITE_H;
@@ -1769,9 +1838,9 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     g.restore();
   }
 
-  function drawSwimmer(g, paint, image, frames, track, row, t, x, y, sw, sh, cam, spriteW, viewW, L, speed) {
+  function drawSwimmer(g, paint, image, sprite, track, row, t, x, y, sw, sh, cam, spriteW, viewW, L, speed) {
     // Only the lowest third of the body is underwater; the eyes stay clear of the surface.
-    const span = extentOf(frames);
+    const span = extentOf(sprite);
     const waterFrac = span.top + (span.bottom - span.top) * WATERLINE;
     const waterY = y + sh * waterFrac;
     const pace = t > 0 && !row.done ? clamp(speed / 2, 0.12, 1.5) : row.done ? 0.2 : 0.12;
@@ -1847,7 +1916,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const lift = 1 - 0.45 * (motion.air || 0);
       if (animal === "turtle") {
         // Contact shadow tucked right under the flippers so the turtle sits on the sand.
-        const foot = extentOf(sprites[track.lane].frames).bottom;
+        const foot = extentOf(sprites[track.lane]).bottom;
         // Centre the shadow a little above the flipper tips so it tucks under the shell.
         const ground = y + sh * (foot - 0.03);
         const spread = sw * 0.4;
@@ -1885,26 +1954,34 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
         }
       }
 
-      const frames = sprites[track.lane].frames;
-      const image = frames[motion.frame || 0] || frames[0];
-      const pad = image.pad || NO_PAD;
-      const unitPx = sw / SPRITE_W;
-      const paint = (picture, glow) => {
-        g.save();
-        g.translate(x + sw / 2, y + motion.dy);
-        g.rotate(motion.rot);
-        g.scale(1 / motion.squash, motion.squash);
-        if (glow && follow === track.lane) {
-          g.shadowColor = "#fff";
-          g.shadowBlur = 14;
-        }
-        g.drawImage(picture, -sw / 2 - pad.left * unitPx, -sh * 0.62 - pad.top * unitPx, (SPRITE_W + pad.left + pad.right) * unitPx, (SPRITE_H + pad.top + pad.bottom) * unitPx);
-        g.restore();
-      };
-      if (animal === "fish") {
-        drawSwimmer(g, paint, image, frames, track, row, t, x, y, sw, sh, cam, spriteW, w, L, speed);
+      const sprite = sprites[track.lane];
+      const image = frameOf(sprite, motion.frame || 0);
+      if (!image) {
+        // Not baked yet (only for a moment on very large fields): a plain blob in the racer's colour.
+        g.fillStyle = sprite.skin.color;
+        g.beginPath();
+        g.ellipse(x + sw * 0.5, y + sh * 0.08, sw * 0.3, sh * 0.2, 0, 0, Math.PI * 2);
+        g.fill();
       } else {
-        paint(image, true);
+        const pad = image.pad || NO_PAD;
+        const unitPx = sw / SPRITE_W;
+        const paint = (picture, glow) => {
+          g.save();
+          g.translate(x + sw / 2, y + motion.dy);
+          g.rotate(motion.rot);
+          g.scale(1 / motion.squash, motion.squash);
+          if (glow && follow === track.lane) {
+            g.shadowColor = "#fff";
+            g.shadowBlur = 14;
+          }
+          g.drawImage(picture, -sw / 2 - pad.left * unitPx, -sh * 0.62 - pad.top * unitPx, (SPRITE_W + pad.left + pad.right) * unitPx, (SPRITE_H + pad.top + pad.bottom) * unitPx);
+          g.restore();
+        };
+        if (animal === "fish") {
+          drawSwimmer(g, paint, image, sprite, track, row, t, x, y, sw, sh, cam, spriteW, w, L, speed);
+        } else {
+          paint(image, true);
+        }
       }
 
       if (animal === "frog" && t > 0 && row.progress < 1.01) {
@@ -2069,6 +2146,8 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   }
 
   function draw(g, w, h, t, { follow = null, status = "racing" } = {}) {
+    bakeDeadline = performance.now() + BAKE_BUDGET_MS;
+    bakedThisFrame = 0;
     const L = layout(w, h);
     const rows = standings(plan, t);
     const cam = cameraX(L, w, rows, t, follow);
@@ -2101,5 +2180,5 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
     return bestDistance < Math.max(40, best.h) ? best.lane : null;
   }
 
-  return { plan, sprites, draw, hitTest, positionOf };
+  return { plan, sprites, draw, hitTest, positionOf, prewarm };
 }

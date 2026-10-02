@@ -118,9 +118,33 @@ export default function RaceStage({ race, clockOffset, connected, credits, start
     [lang]
   );
 
-  const shown = useMemo(() => lineupOf(race), [race.id, race.status, race.motionSeed, race.entrants?.length, race.names.join("\n")]);
+  // The engine is rebuilt only when the lineup really changes: once when the start reveals the
+  // result (no entrants -> entrants) and never again, so neither the countdown nor the moment the
+  // race finishes (racing -> finished) has to rebuild anything for a large field.
+  const hasRun = race.status !== "ready";
+  const shown = useMemo(() => lineupOf(race), [race.id, race.motionSeed, race.entrants?.length, race.names.join("\n")]);
   const engine = useMemo(() => createRace(shown, sponsorImages, engineLabels), [shown, sponsorImages, engineLabels]);
-  const events = useMemo(() => (race.status === "ready" ? [] : buildCommentary(engine.plan)), [engine, race.status]);
+  const events = useMemo(() => (hasRun ? buildCommentary(engine.plan) : []), [engine, hasRun]);
+
+  // Bake the sprites a few milliseconds at a time while the browser is idle, so the lineup and the
+  // race never wait on them.
+  useEffect(() => {
+    let stop = false;
+    let handle = 0;
+    const idle = typeof window.requestIdleCallback === "function";
+    const schedule = (fn) => (idle ? window.requestIdleCallback(fn, { timeout: 250 }) : window.setTimeout(fn, 30));
+    const unschedule = (id) => (idle ? window.cancelIdleCallback(id) : window.clearTimeout(id));
+    function step(deadline) {
+      if (stop) return;
+      const room = deadline && typeof deadline.timeRemaining === "function" ? Math.min(8, Math.max(3, deadline.timeRemaining())) : 4;
+      if (!engine.prewarm(room)) handle = schedule(step);
+    }
+    handle = schedule(step);
+    return () => {
+      stop = true;
+      unschedule(handle);
+    };
+  }, [engine]);
 
   const live = useRef({});
   live.current = { race, clockOffset, replayAt, follow, engine, leadIn, events };

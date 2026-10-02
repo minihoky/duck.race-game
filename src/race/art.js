@@ -1388,12 +1388,12 @@ export function skinsFor(race) {
 export const NO_PAD = { left: 0, top: 0, right: 0, bottom: 0 };
 const PADS = { frog: { left: 64, top: 6, right: 0, bottom: 26 } };
 
-export function bakeSprite(animal, skin, pose, pad = NO_PAD) {
+export function bakeSprite(animal, skin, pose, pad = NO_PAD, scale = BAKE) {
   const canvas = document.createElement("canvas");
-  canvas.width = (SPRITE_W + pad.left + pad.right) * BAKE;
-  canvas.height = (SPRITE_H + pad.top + pad.bottom) * BAKE;
+  canvas.width = Math.max(1, Math.round((SPRITE_W + pad.left + pad.right) * scale));
+  canvas.height = Math.max(1, Math.round((SPRITE_H + pad.top + pad.bottom) * scale));
   const g = canvas.getContext("2d");
-  g.scale(BAKE, BAKE);
+  g.scale(scale, scale);
   g.translate(pad.left, pad.top);
   g.lineJoin = "round";
   const draw = BODIES[animal] || BODIES.rabbit;
@@ -1417,4 +1417,46 @@ export function bakeFrames(animal, skin) {
   const [rest, moving] = cycle;
   const pad = PADS[animal] || NO_PAD;
   return [bakeSprite(animal, skin, rest, pad), ...moving.map((pose) => bakeSprite(animal, skin, pose, pad))];
+}
+
+// ---- Lazy sprite frames for big fields ------------------------------------------------------
+// A race with hundreds of racers needs hundreds of distinct skins. Baking every frame of every
+// skin up front takes seconds and hundreds of MB of canvases, so frames are baked on demand,
+// a few milliseconds per drawn frame, at a resolution that fits the number of racers, and kept
+// in a shared cache so a rebuilt race engine never bakes the same skin twice.
+
+// Bake resolution (pixels per sprite unit) by number of racers: crowded lanes draw tiny sprites.
+export function bakeScaleFor(count) {
+  if (count <= 24) return BAKE;
+  if (count <= 60) return 1.5;
+  if (count <= 120) return 1;
+  return 0.75;
+}
+
+export function frameCount(animal) {
+  const cycle = CYCLES[animal];
+  return cycle ? 1 + cycle[1].length : 1;
+}
+
+export function bakeFrame(animal, skin, index, scale = BAKE) {
+  const cycle = CYCLES[animal];
+  if (!cycle) return bakeSprite(animal, skin, undefined, NO_PAD, scale);
+  const pad = PADS[animal] || NO_PAD;
+  const pose = index <= 0 ? cycle[0] : cycle[1][Math.min(index, cycle[1].length) - 1];
+  return bakeSprite(animal, skin, pose, pad, scale);
+}
+
+const FRAME_STORES = new Map();
+const FRAME_STORE_LIMIT = 800;
+
+// The (initially empty) set of frames for one skin. `frames[i]` is filled in by the caller.
+export function frameStore(animal, skin, scale) {
+  const key = `${animal}|${scale}|${skin.color}|${skin.pattern}|${skin.accessory}`;
+  let store = FRAME_STORES.get(key);
+  if (store) return store;
+  store = { animal, skin, scale, total: frameCount(animal), frames: [] };
+  FRAME_STORES.set(key, store);
+  // Engines keep their own reference, so dropping the oldest entries only forgets the lookup.
+  if (FRAME_STORES.size > FRAME_STORE_LIMIT) FRAME_STORES.delete(FRAME_STORES.keys().next().value);
+  return store;
 }
