@@ -63,6 +63,7 @@ const PT = {
   "Mercado Pago webhook signature is invalid.": "A assinatura do webhook do Mercado Pago é inválida.",
   "Email could not be sent. Add SMTP settings and try again.": "Não foi possível enviar o e-mail. Configure o SMTP e tente novamente.",
   "Email could not be sent. Try again in a moment.": "Não foi possível enviar o e-mail. Tente novamente em instantes.",
+  "Email is not set up on this server yet. Contact support.": "O envio de e-mails ainda não está configurado neste servidor. Fale com o suporte.",
   "That upload is too large.": "Esse arquivo é grande demais.",
   "The request could not be completed.": "Não foi possível concluir a solicitação.",
   "Method not allowed.": "Método não permitido.",

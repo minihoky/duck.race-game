@@ -113,6 +113,24 @@ function sessionCookie(token, secure) {
   return `dr_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_MS_PUBLIC / 1000)}${secureFlag}`;
 }
 
+function production() {
+  return process.env.NODE_ENV === "production";
+}
+
+function linkOrigin(req) {
+  const configured = String(process.env.PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  return production() ? "" : origin(req);
+}
+
+function mailProblem(req) {
+  if (!linkOrigin(req)) return "PUBLIC_APP_URL is not set";
+  if (production() && !String(process.env.SMTP_HOST || "").trim()) return "SMTP_HOST is not set";
+  return "";
+}
+
+const MAIL_UNAVAILABLE = "Email is not set up on this server yet. Contact support.";
+
 async function deliver({ to, subject, text, link }) {
   try {
     const result = await sendMail({ to, subject, text });
@@ -120,9 +138,22 @@ async function deliver({ to, subject, text, link }) {
     if (canPreviewMail()) return { previewUrl: link };
     return { error: "Email could not be sent. Add SMTP settings and try again." };
   } catch (error) {
-    console.error(error);
+    console.error("Email to", to, "failed:", error.message);
     return { error: "Email could not be sent. Try again in a moment." };
   }
+}
+
+function deliverLater(message) {
+  if (canPreviewMail()) return { previewUrl: message.link };
+  deliver(message).then((result) => {
+    if (result.error) console.error("Email to", message.to, "was not delivered:", result.error);
+  });
+  return {};
+}
+
+function steady(started, ms = 600) {
+  const wait = ms - (Date.now() - started);
+  return wait > 0 ? new Promise((done) => setTimeout(done, wait)) : Promise.resolve();
 }
 
 export function authMiddleware(req, res, next) {
@@ -187,6 +218,15 @@ async function handle(req, res, url) {
 
   const body = await readBody(req);
 
+  if (path === "/api/auth/register" || path === "/api/auth/resend" || path === "/api/auth/forgot") {
+    const problem = mailProblem(req);
+    if (problem) {
+      console.error(`Account email is disabled: ${problem}.`);
+      send(res, 503, { error: MAIL_UNAVAILABLE });
+      return;
+    }
+  }
+
   if (path === "/api/auth/register") {
     const name = validName(body.name);
     const email = normalizeEmail(body.email);
@@ -207,7 +247,7 @@ async function handle(req, res, url) {
       send(res, created.status, { error: created.error });
       return;
     }
-    const link = `${origin(req)}/verify-email?token=${encodeURIComponent(created.verifyToken)}`;
+    const link = `${linkOrigin(req)}/verify-email?token=${encodeURIComponent(created.verifyToken)}`;
     const mail = await deliver({ to: email, subject: mailText(lang, "verifySubject"), link, text: mailText(lang, "verifyText", name, link) });
     if (mail.error) {
       send(res, 502, { error: mail.error });
@@ -218,19 +258,16 @@ async function handle(req, res, url) {
   }
 
   if (path === "/api/auth/resend") {
+    const started = Date.now();
     const email = normalizeEmail(body.email);
     const result = await resendVerification(email);
+    let mail = {};
     if (result.verifyToken) {
-      const link = `${origin(req)}/verify-email?token=${encodeURIComponent(result.verifyToken)}`;
-      const mail = await deliver({ to: result.email, subject: mailText(lang, "verifySubject"), link, text: mailText(lang, "resendText", result.name, link) });
-      if (mail.error) {
-        send(res, 502, { error: mail.error });
-        return;
-      }
-      send(res, 200, { ok: true, ...mail });
-      return;
+      const link = `${linkOrigin(req)}/verify-email?token=${encodeURIComponent(result.verifyToken)}`;
+      mail = deliverLater({ to: result.email, subject: mailText(lang, "verifySubject"), link, text: mailText(lang, "resendText", result.name, link) });
     }
-    send(res, 200, { ok: true });
+    await steady(started);
+    send(res, 200, { ok: true, ...mail });
     return;
   }
 
@@ -268,15 +305,15 @@ async function handle(req, res, url) {
       send(res, 400, { error: "Enter a valid email address." });
       return;
     }
+    const started = Date.now();
     const result = await requestReset(email);
+    let mail = {};
     if (result.resetToken) {
-      const link = `${origin(req)}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
-      const mail = await deliver({ to: result.email, subject: mailText(lang, "resetSubject"), link, text: mailText(lang, "resetText", result.name, link) });
-      if (mail.error) console.error(mail.error);
-      send(res, 200, { ok: true, previewUrl: mail.previewUrl });
-      return;
+      const link = `${linkOrigin(req)}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
+      mail = deliverLater({ to: result.email, subject: mailText(lang, "resetSubject"), link, text: mailText(lang, "resetText", result.name, link) });
     }
-    send(res, 200, { ok: true });
+    await steady(started);
+    send(res, 200, { ok: true, ...mail });
     return;
   }
 
