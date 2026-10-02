@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { sfx } from "../race/sound";
 
 const PALETTES = [
   ["#ffd23f", "#ffb400", "#fff6c9"],
@@ -99,6 +100,9 @@ export default function Fireworks({ className = "", text = "", onNameChange }) {
       notifyRef.current?.(on);
     };
 
+    // Where a firework sits across the sky, as a stereo position: -0.7 (far left) to 0.7 (far right).
+    const panOf = (x) => Math.max(-1, Math.min(1, (x / Math.max(1, width)) * 2 - 1)) * 0.7;
+
     const launch = (targetX, targetY) => {
       const x = targetX ?? width * (0.08 + Math.random() * 0.84);
       const burstY = targetY ?? height * (0.1 + Math.random() * 0.45);
@@ -113,6 +117,7 @@ export default function Fireworks({ className = "", text = "", onNameChange }) {
         kind: shells % 5,
       });
       shells += 1;
+      sfx.rocket(panOf(x));
     };
 
     const spark = (x, y, vx, vy, ttl, color, size, extra = {}) => {
@@ -121,6 +126,7 @@ export default function Fireworks({ className = "", text = "", onNameChange }) {
 
     const burst = (x, y, palette, kind, scale = 1) => {
       const [main, accent, core] = palette;
+      sfx.boom(scale, kind, panOf(x));
       flash = Math.min(1, flash + 0.35 * scale);
       sparks.push({ x, y, vx: 0, vy: 0, life: 0, ttl: 0.34, color: core, size: 18 * scale, flash: true, twinkle: 0, drag: 1 });
       const power = (150 + Math.random() * 110) * scale;
@@ -173,6 +179,7 @@ export default function Fireworks({ className = "", text = "", onNameChange }) {
 
     const splitSpark = (parent) => {
       const [, accent, core] = parent.split.palette;
+      sfx.split(panOf(parent.x));
       for (let i = 0; i < parent.split.count; i += 1) {
         const angle = (i / parent.split.count) * Math.PI * 2 + Math.PI / 4;
         spark(parent.x, parent.y, Math.cos(angle) * 85, Math.sin(angle) * 85, 0.8, i % 2 ? core : accent, 1.8);
@@ -244,6 +251,7 @@ export default function Fireworks({ className = "", text = "", onNameChange }) {
       setNameShown(show);
       if (!name.started) {
         name.started = true;
+        sfx.shimmer();
         // Three real shells go off where the sparks gather.
         name.seeds.forEach((x, i) => burst(x, name.textY - name.fontSize * 0.9, PALETTES[(i * 2 + 1) % PALETTES.length], i === 1 ? 0 : 1, 0.9));
       }
