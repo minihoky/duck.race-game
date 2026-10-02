@@ -5,6 +5,7 @@ import { navItems, siteName, supportEmail } from "../content/site";
 import { logout, me, publishAccount } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import AuthDialog from "./AuthDialog";
+import Wordmark from "./Wordmark";
 
 export default function Layout({ children }) {
   const { t } = useT();
@@ -158,11 +159,11 @@ function Brand({ compact = false }) {
   const { t } = useT();
   return (
     <Link to="/" className={`relative flex select-none items-center gap-3 ${compact ? "" : "px-5 pb-3 pt-6"}`}>
-      <img src="/logo.svg" alt="" className={`${compact ? "h-8 w-8" : "h-11 w-11"} shrink-0 rounded-2xl shadow-lg shadow-black/30`} />
+      <img src="/logo.png" alt="" className={`${compact ? "h-8 w-8" : "h-11 w-11"} shrink-0 rounded-2xl shadow-lg shadow-black/30`} />
       {!compact && (
         <span className="flex flex-col justify-center leading-none">
           <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">{t("Verifiable draws")}</span>
-          <span className="mt-1 text-[15px] font-bold tracking-tight text-white">{siteName}</span>
+          <Wordmark name={siteName} className="mt-1.5 pb-2 text-[24px]" />
         </span>
       )}
     </Link>
@@ -240,9 +241,9 @@ function Footer() {
     <footer className="border-t border-[#d6b25e]/20 bg-transparent pb-16 md:pb-0">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-10 sm:grid-cols-2">
         <div>
-          <div className="mb-4 flex items-center gap-3">
-            <img src="/logo.svg" alt="" className="h-7 w-7 rounded-lg" />
-            <span className="text-lg font-bold text-white">{siteName}</span>
+          <div className="mb-4 flex items-center gap-3.5">
+            <img src="/logo.png" alt="" className="h-10 w-10 shrink-0 rounded-xl" />
+            <Wordmark name={siteName} className="pb-2 text-[26px]" />
           </div>
           <p className="max-w-sm text-sm leading-relaxed text-slate-400">
             {t("Animal races for prize draws. The server decides each result before the start, and anyone can verify it afterwards.")}
