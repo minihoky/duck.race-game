@@ -15,7 +15,6 @@ let store = null;
 let state = emptyState();
 let readyPromise = null;
 let queue = Promise.resolve();
-const usedVerify = new Map();
 
 export function ready() {
   if (!readyPromise) {
@@ -174,13 +173,13 @@ export function registerAccount({ name, email, password }) {
 export function verifyAccount(rawToken) {
   return update(async () => {
     const hash = digest(String(rawToken || ""));
-    if ((usedVerify.get(hash) || 0) > Date.now()) return { status: 200 };
+    if (state.users.some((item) => item.verified && item.usedVerifyHash === hash)) return { status: 200 };
     const user = state.users.find((item) => item.verifyTokenHash && item.verifyTokenHash === hash);
     if (!user || user.verifyExpires < Date.now()) return { status: 400, error: "This verification link is invalid or has expired." };
     user.verified = true;
     user.verifyTokenHash = "";
     user.verifyExpires = 0;
-    usedVerify.set(hash, Date.now() + 10 * 60 * 1000);
+    user.usedVerifyHash = hash;
     appendAudit(state, { actorId: user.id, action: "user.verified", targetType: "user", targetId: user.id });
     await persist();
     return { status: 200 };
@@ -281,6 +280,13 @@ export function resetPassword(rawToken, password) {
     const hash = digest(String(rawToken || ""));
     const user = state.users.find((item) => item.resetTokenHash && item.resetTokenHash === hash);
     if (!user || user.resetExpires < Date.now()) return { status: 400, error: "This reset link is invalid or has expired." };
+    applyRole(user);
+    if (user.status === "blocked") {
+      user.resetTokenHash = "";
+      user.resetExpires = 0;
+      await persist();
+      return { status: 403, error: "This account is blocked. Contact support." };
+    }
     user.passwordHash = await hashPassword(password);
     user.resetTokenHash = "";
     user.resetExpires = 0;
