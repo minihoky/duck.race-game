@@ -20,9 +20,11 @@ services:
       - key: DATABASE_SSL
         value: no-verify
       - key: SITE_NAME
-        value: Animal Race
+        value: ZooRacing
       - key: VITE_SITE_NAME
-        value: Animal Race
+        value: ZooRacing
+      - key: VITE_GROUP_URL
+        sync: false
       - key: PAYMENT_GATEWAY
         value: mercadopago
       - key: PAYMENT_CURRENCY

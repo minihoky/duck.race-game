@@ -89,7 +89,7 @@ export function translate(lang, message) {
 }
 
 export function siteName() {
-  return String(process.env.SITE_NAME || "Animal Race").trim() || "Animal Race";
+  return String(process.env.SITE_NAME || "ZooRacing").trim() || "ZooRacing";
 }
 
 const MAIL = {

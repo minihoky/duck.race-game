@@ -1,6 +1,6 @@
 {
-  "name": "Animal Race",
-  "short_name": "Animal Race",
+  "name": "ZooRacing",
+  "short_name": "ZooRacing",
   "description": "Sorteios com corridas de animais e resultado verificável.",
   "start_url": "/",
   "display": "standalone",

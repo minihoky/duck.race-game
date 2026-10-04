@@ -1,4 +1,4 @@
-# Animal Race
+# ZooRacing
 
 Prize draws shown as a live animal race (rabbit, frog, fish, turtle, snail). The server decides every result before the start with a published commitment, and anyone can verify it afterwards.
 

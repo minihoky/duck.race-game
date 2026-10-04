@@ -40,6 +40,7 @@ export const PT = {
   "Animal races for prize draws. The server decides each result before the start, and anyone can verify it afterwards.":
     "Corridas de animais para sorteios. O servidor define cada resultado antes da largada, e qualquer pessoa pode verificá-lo depois.",
   Links: "Links",
+  "Join the group": "Entrar no grupo",
   Terms: "Termos",
   Privacy: "Privacidade",
   Support: "Suporte",

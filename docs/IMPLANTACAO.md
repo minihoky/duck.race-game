@@ -87,7 +87,7 @@ Exemplo com Gmail:
    SMTP_PASS=senha-de-app-de-16-letras
    ```
 
-O remetente padrão é `Animal Race <SMTP_USER>`. Para mudar, defina `MAIL_FROM`.
+O remetente padrão é `ZooRacing <SMTP_USER>`. Para mudar, defina `MAIL_FROM`.
 
 Para grandes volumes, prefira um serviço transacional (Brevo, Amazon SES, Mailgun). Configure SPF e DKIM no domínio para os e-mails não caírem no spam.
 
