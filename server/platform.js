@@ -779,11 +779,11 @@ export async function handlePlatform(req, res, url, ctx) {
       const title = String(body.name || "").trim() || "Official race";
       if (title.length > 60) return { status: 400, persist: changed, error: "The race name can be at most 60 characters." };
       const requested = Array.isArray(body.sponsorIds) ? body.sponsorIds.map(String) : [];
-      if (requested.length > 8) return { status: 400, persist: changed, error: "Choose up to 8 sponsor images." };
+      if (requested.length > 1) return { status: 400, persist: changed, error: "Choose one sponsor image." };
       const sponsors = [];
       for (const sponsorId of requested) {
         const sponsor = state.sponsors.find((item) => item.id === sponsorId && item.userId === user.id && item.scope !== "global" && item.active !== false);
-        if (sponsor && !sponsors.some((item) => item.id === sponsor.id)) sponsors.push({ id: sponsor.id, name: sponsor.name });
+        if (sponsor && sponsors.length < 1) sponsors.push({ id: sponsor.id, name: sponsor.name });
       }
       const seed = randomBytes(32).toString("hex");
       const race = {
@@ -1084,12 +1084,14 @@ export async function handlePlatform(req, res, url, ctx) {
       persist: false,
       owned: state.sponsors.filter((sponsor) => sponsor.userId === user.id && sponsor.scope !== "global" && sponsor.active !== false).length,
     }));
-    if (count.owned >= 12) {
-      send(res, 400, { error: "You can keep up to 12 sponsor images." });
+    if (count.owned >= 1) {
+      send(res, 400, { error: "You can keep one sponsor image." });
       return;
     }
     await saveImage(id, png.buf);
     const result = await mutate((state) => {
+      const owned = state.sponsors.filter((sponsor) => sponsor.userId === user.id && sponsor.scope !== "global" && sponsor.active !== false).length;
+      if (owned >= 1) return { status: 400, persist: false, error: "You can keep one sponsor image." };
       const now = Date.now();
       const sponsor = { id, userId: user.id, name, scope: "user", createdAt: now, updatedAt: now, active: true, sort: 0 };
       state.sponsors.push(sponsor);

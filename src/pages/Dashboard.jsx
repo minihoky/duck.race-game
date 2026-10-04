@@ -224,14 +224,16 @@ export default function Dashboard() {
 
       <section className="mt-10">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xl font-bold">{t("Your sponsor images")}</h2>
-          <label className="cursor-pointer rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold">
-            {t("Upload PNG")}
-            <input className="hidden" type="file" accept="image/png,.png" onChange={onUpload} />
-          </label>
+          <h2 className="text-xl font-bold">{t("Your sponsor image")}</h2>
+          {account.sponsors.length === 0 && (
+            <label className="cursor-pointer rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold">
+              {t("Upload PNG")}
+              <input className="hidden" type="file" accept="image/png,.png" onChange={onUpload} />
+            </label>
+          )}
         </div>
         <p className="mb-4 text-sm text-gray-600">
-          {t("PNG files you can add to the stadium boards of your own races. Platform sponsors managed by the administrator always appear too.")}
+          {t("One PNG you can add to the stadium boards of your own races. Remove it to upload a different one. Platform sponsors managed by the administrator always appear too.")}
         </p>
         {account.sponsors.length === 0 ? (
           <p className="rounded-2xl bg-gray-50 px-4 py-8 text-center text-gray-500">{t("No sponsor images yet.")}</p>

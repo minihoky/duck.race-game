@@ -397,8 +397,8 @@ function RaceSetup() {
         {durationBad && <p className="text-sm text-red-600">{t("Set a length between {min} and {max} seconds.", { min: MIN_DURATION, max: MAX_DURATION })}</p>}
         {sponsors.length > 0 && (
           <fieldset>
-            <legend className="text-sm font-semibold">{t("Your sponsor images")}</legend>
-            <p className="text-xs text-gray-500">{t("Platform sponsors always appear on the boards. You can add up to 8 of your own.")}</p>
+            <legend className="text-sm font-semibold">{t("Your sponsor image")}</legend>
+            <p className="text-xs text-gray-500">{t("Platform sponsors always appear on the boards. You can add one of your own.")}</p>
             <div className="mt-2 space-y-2">
               {sponsors.map((sponsor) => (
                 <label key={sponsor.id} className="flex items-center gap-2 text-sm">
@@ -406,7 +406,7 @@ function RaceSetup() {
                     type="checkbox"
                     checked={chosen.includes(sponsor.id)}
                     onChange={(event) => {
-                      setChosen((current) => (event.target.checked ? [...current, sponsor.id].slice(0, 8) : current.filter((item) => item !== sponsor.id)));
+                      setChosen(event.target.checked ? [sponsor.id] : []);
                     }}
                   />
                   {sponsor.name}

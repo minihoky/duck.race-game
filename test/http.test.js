@@ -193,6 +193,30 @@ test("after the finish the seed is revealed and the result verifies", { timeout:
   assert.equal((await admin("/api/admin/audit")).data.chain.ok, true);
 });
 
+test("an account keeps a single sponsor image", async () => {
+  const call = client("pt");
+  await signUp(call, "Patrocinador", "sponsor@example.com");
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const first = await call("/api/sponsors", { method: "POST", body: { name: "Um", png } });
+  assert.equal(first.status, 201, JSON.stringify(first.data));
+  const second = await call("/api/sponsors", { method: "POST", body: { name: "Dois", png } });
+  assert.equal(second.status, 400);
+  assert.match(second.data.error, /uma imagem de patrocinador/);
+  const account = await call("/api/account");
+  assert.equal(account.data.sponsors.length, 1);
+  const blocked = await call("/api/races", {
+    method: "POST",
+    body: { names: ["Ana", "Bruno"], durationSec: 10, sponsorIds: [first.data.sponsor.id, "a".repeat(24)] },
+  });
+  assert.equal(blocked.status, 400);
+  const created = await call("/api/races", {
+    method: "POST",
+    body: { names: ["Ana", "Bruno"], durationSec: 10, sponsorIds: [first.data.sponsor.id] },
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  assert.equal(created.data.race.sponsors.length, 1);
+});
+
 test("saved data reloads with an intact audit chain", async () => {
   const { openStore } = await import("../server/store.js");
   const { verifyChain } = await import("../server/audit.js");

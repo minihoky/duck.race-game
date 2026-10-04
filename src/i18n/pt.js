@@ -372,10 +372,10 @@ export const PT = {
   "Credit activity": "Movimentação de créditos",
   "Credits cannot be withdrawn, transferred to another account, or refunded for cash.": "Os créditos não podem ser sacados, transferidos para outra conta nem reembolsados em dinheiro.",
   "No credit activity yet.": "Nenhuma movimentação de créditos ainda.",
-  "Your sponsor images": "Suas imagens de patrocinadores",
+  "Your sponsor image": "Sua imagem de patrocinador",
   "Upload PNG": "Enviar PNG",
-  "PNG files you can add to the stadium boards of your own races. Platform sponsors managed by the administrator always appear too.":
-    "Arquivos PNG que você pode colocar nas placas do estádio das suas corridas. Os patrocinadores da plataforma, gerenciados pelo administrador, também aparecem sempre.",
+  "One PNG you can add to the stadium boards of your own races. Remove it to upload a different one. Platform sponsors managed by the administrator always appear too.":
+    "Um arquivo PNG que você pode colocar nas placas do estádio das suas corridas. Remova-o para enviar outro. Os patrocinadores da plataforma, gerenciados pelo administrador, também aparecem sempre.",
   "No sponsor images yet.": "Nenhuma imagem de patrocinador ainda.",
   "Password recovery": "Recuperação de senha",
   "Send a reset link to {email}.": "Enviar um link de redefinição para {email}.",
@@ -463,7 +463,7 @@ export const PT = {
   "Clear": "Limpar",
   "Delete last digit": "Apagar o último dígito",
   "Set a length between {min} and {max} seconds.": "Defina uma duração entre {min} e {max} segundos.",
-  "Platform sponsors always appear on the boards. You can add up to 8 of your own.": "Os patrocinadores da plataforma sempre aparecem nas placas. Você pode adicionar até 8 seus.",
+  "Platform sponsors always appear on the boards. You can add one of your own.": "Os patrocinadores da plataforma sempre aparecem nas placas. Você pode adicionar um seu.",
   "Save setup": "Salvar configuração",
 
   // Legal
