@@ -227,7 +227,7 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
   function layout(w, h) {
     const compact = w < 640;
     const skyH = h * (compact ? 0.2 : 0.23);
-    const boardH = clamp(h * 0.07, 22, 48);
+    const boardH = clamp(h * 0.12, 40, 96);
     const fieldTop = skyH + boardH + 8;
     const fieldBottom = h - (compact ? 30 : 38);
     const fieldH = fieldBottom - fieldTop;
@@ -1109,11 +1109,22 @@ export function createRace(race, sponsorImages = [], labelSet = {}) {
       const midX = x + (boardW + skew) / 2;
       const midY = y + H / 2;
       if (sponsor && sponsor.complete && sponsor.naturalWidth) {
-        const fitW = boardW - skew - 18;
-        const scale = Math.min(fitW / sponsor.naturalWidth, (H - 10) / sponsor.naturalHeight);
+        g.save();
+        g.beginPath();
+        g.moveTo(x + skew + 3, y + 3);
+        g.lineTo(right + skew - 3, y + 3);
+        g.lineTo(right - 3, y + H - 3);
+        g.lineTo(x + 3, y + H - 3);
+        g.closePath();
+        g.clip();
+        const boxW = boardW + skew - 6;
+        const boxH = H - 6;
+        const scale = Math.max(boxW / sponsor.naturalWidth, boxH / sponsor.naturalHeight);
         const iw = sponsor.naturalWidth * scale;
         const ih = sponsor.naturalHeight * scale;
+        g.imageSmoothingQuality = "high";
         g.drawImage(sponsor, midX - iw / 2, midY - ih / 2, iw, ih);
+        g.restore();
         continue;
       }
 
