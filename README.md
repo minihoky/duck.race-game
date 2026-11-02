@@ -28,7 +28,7 @@ Portuguese (pt-BR) is the default language, with an English toggle. Deployment g
 
 - React 19, React Router 7, Tailwind 4, Vite 6
 - Node ≥ 20.12 using only `node:http`; dependencies are `pg` and `nodemailer`
-- PostgreSQL in production; a JSON file (`server/data/accounts.json`) as the local development fallback
+- PostgreSQL (Supabase) in production; a JSON file (`server/data/accounts.json`) as the local development fallback
 
 ```text
 server/
@@ -106,7 +106,7 @@ Every variable is documented in [.env.example](.env.example). The important ones
 
 ## Deployment
 
-- **Render only (simplest):** `render.yaml` is a Blueprint that creates the web service and a PostgreSQL database. The Node server serves both the API and the built frontend.
+- **Render only (simplest):** `render.yaml` is a Blueprint that creates the web service; set `DATABASE_URL` to your Supabase Session pooler string. The Node server serves both the API and the built frontend.
 - **Netlify (frontend) + Render (API):** `netlify.toml` proxies `/api/*` to Render, so the session cookie stays first-party. On Render, set `SERVE_STATIC=false` and set `PUBLIC_APP_URL` to the Netlify domain.
 
 Moving existing JSON data into PostgreSQL: `DATABASE_URL=... npm run db:import` (this only runs into an empty database).

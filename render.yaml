@@ -14,9 +14,7 @@ services:
       - key: SERVE_STATIC
         value: "true"
       - key: DATABASE_URL
-        fromDatabase:
-          name: animal-race-db
-          property: connectionString
+        sync: false
       - key: DATABASE_SSL
         value: no-verify
       - key: SITE_NAME
@@ -49,8 +47,3 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-
-databases:
-  - name: animal-race-db
-    plan: basic-256mb
-    databaseName: animal_race
