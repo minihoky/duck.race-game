@@ -1,8 +1,8 @@
 export const siteName = import.meta.env.VITE_SITE_NAME || "ZooRacing";
 
-// Link do botão "Entrar no grupo": abre o WhatsApp neste número.
-// Para usar outro link (ex.: convite de grupo), defina VITE_GROUP_URL.
-export const groupUrl = import.meta.env.VITE_GROUP_URL || "https://wa.me/5582999247882";
+// Link do botão "Entrar no grupo": convite do grupo no WhatsApp.
+// Para usar outro link, defina VITE_GROUP_URL.
+export const groupUrl = import.meta.env.VITE_GROUP_URL || "https://chat.whatsapp.com/KMqvFX7J3vqEmNcRldpCKQ?mode=gi_t";
 
 export const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL || "";
 
