@@ -4,7 +4,8 @@ Este guia leva a plataforma do código até o ar, com banco PostgreSQL, Mercado 
 
 ## 1. O que você precisa
 
-- Conta no **Render** (https://render.com). Hospeda o servidor Node e o banco PostgreSQL.
+- Conta no **Render** (https://render.com). Hospeda o servidor Node.
+- Projeto no **Supabase** (https://supabase.com). Hospeda o banco PostgreSQL.
 - Conta de vendedor no **Mercado Pago**, com acesso a "Suas integrações".
 - Uma conta de e-mail com **SMTP**: Gmail com senha de app, Zoho, Brevo, Amazon SES etc.
 - (Opcional) Um domínio próprio, por exemplo `www.seusite.com.br`.
@@ -15,11 +16,11 @@ Este guia leva a plataforma do código até o ar, com banco PostgreSQL, Mercado 
 1. Envie o código para um repositório GitHub ou GitLab.
 2. No Render, clique em **New > Blueprint** e escolha o repositório. O arquivo `render.yaml` cria:
    - o serviço web `animal-race` (build `npm ci --include=dev && npm run build`, início `npm start`);
-   - o banco PostgreSQL `animal-race-db`, já ligado ao `DATABASE_URL`.
 3. Preencha as variáveis marcadas como "sync: false":
 
 | Variável | Valor |
 | --- | --- |
+| `DATABASE_URL` | No Supabase: **Connect > Session pooler** (porta 5432). Não use o host direto `db.<ref>.supabase.co`: ele é só IPv6 e o Render não alcança. Troque `[YOUR-PASSWORD]` pela senha do banco |
 | `PUBLIC_APP_URL` | Endereço público do site, com https e sem barra no final. Ex.: `https://animal-race.onrender.com` ou `https://www.seusite.com.br` |
 | `ADMIN_EMAILS` | E-mails dos administradores, separados por vírgula |
 | `MERCADOPAGO_ACCESS_TOKEN` | Access Token de **produção** (começa com `APP_USR-`) |
@@ -106,14 +107,31 @@ Para grandes volumes, prefira um serviço transacional (Brevo, Amazon SES, Mailg
 Se você já usou o site com o arquivo JSON (`server/data/accounts.json`) e quer levar esses dados para o banco:
 
 ```bash
-DATABASE_URL="postgres://..." npm run db:import
+DATABASE_URL="postgresql://...pooler.supabase.com:5432/postgres" DATABASE_SSL=no-verify npm run db:import
 ```
 
 O comando só roda em um banco vazio.
 
+## 7b. Migrar do Render para o Supabase
+
+1. Crie o projeto no Supabase e copie a string do **Session pooler**.
+2. Pare o serviço no Render para ninguém gravar durante a cópia.
+3. Exporte o banco do Render (use a *External Database URL*):
+   ```bash
+   pg_dump --no-owner --no-privileges -f render.sql "RENDER_EXTERNAL_URL"
+   ```
+4. Importe no Supabase, que deve estar vazio (não inicie o servidor antes):
+   ```bash
+   psql "SUPABASE_URL" -v ON_ERROR_STOP=1 -f render.sql
+   ```
+   O dump inclui o esquema, os gatilhos e os dados. Os gatilhos só bloqueiam UPDATE/DELETE, então o INSERT da restauração não é afetado.
+5. Confira as contagens (`SELECT count(*)` em `users`, `ledger`, `races`, `audit_log`) nos dois bancos.
+6. No Render, defina `DATABASE_URL` com a string do Supabase e `DATABASE_SSL=no-verify`, e faça o deploy. Na primeira partida o servidor aplica `schema.sql` (idempotente), que ativa o RLS nas tabelas.
+7. Teste `/api/health` e mantenha o banco antigo por alguns dias antes de apagá-lo.
+
 ## 8. Backups
 
-- No Render, o PostgreSQL pago faz backups diários automáticos (veja **Recovery** no banco).
+- No Supabase, os planos pagos fazem backups diários (**Database > Backups**). No plano gratuito, faça `pg_dump` periódico.
 - As imagens dos patrocinadores ficam no próprio banco (tabela `sponsor_images`), então o backup do banco cobre tudo.
 
 ## 9. Verificação de imparcialidade
