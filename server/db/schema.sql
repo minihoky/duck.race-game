@@ -209,16 +209,3 @@ CREATE TRIGGER ledger_append_only BEFORE UPDATE OR DELETE ON ledger FOR EACH ROW
 
 DROP TRIGGER IF EXISTS payments_no_delete ON payments;
 CREATE TRIGGER payments_no_delete BEFORE DELETE ON payments FOR EACH ROW EXECUTE FUNCTION dr_forbid_change();
-
--- Supabase exposes every table in the public schema through its REST API. The server connects as the
--- table owner (bypasses RLS); enabling RLS with no policies blocks the public anon/authenticated keys.
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE packages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE races ENABLE ROW LEVEL SECURITY;
-ALTER TABLE race_participants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sponsors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sponsor_images ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
